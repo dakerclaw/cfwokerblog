@@ -4,6 +4,7 @@ import { json, errorResponse, generateSlug, getCorsHeaders, normalizeLinkUrl } f
 import { generateToken, verifyToken, authenticateRequest, hashPassword, verifyPasswordHash } from './lib/auth.js';
 import { initDB, getSettings, saveSettings } from './lib/db.js';
 import { handleUpload } from './lib/image.js';
+import { purgeAllCache } from './lib/cache.js';
 
 // ==================== 常量 ====================
 const RATE_MAX_5 = 5;                    // 最大尝试次数
@@ -599,11 +600,36 @@ async function handleSaveSettings(request, env) {
   try {
     const body = await request.json();
     await saveSettings(env, body);
+    // 清除首页及分类/标签页缓存，确保主题等外观改动立即生效
+    // （首页被 Cloudflare 边缘缓存，不清除会长期显示旧主题）
+    try {
+      await purgeFrontendCache(request, env);
+    } catch (e) {
+      console.error('[API] 清除前台缓存失败(可忽略):', e);
+    }
     return json({ success: true });
   } catch (e) {
     console.error('[API] 保存设置失败:', e);
     return json({ success: false, error: '保存设置失败: ' + e.message }, 500);
   }
+}
+
+/**
+ * 清除前台页面（首页 + 各分类/标签页）的边缘缓存。
+ * 这些页面带缓存，改主题/资料后若不清除会显示旧样式。
+ */
+async function purgeFrontendCache(request, env) {
+  const origin = new URL(request.url).origin;
+  const urls = [origin + '/'];
+  try {
+    const cats = await env.DB.prepare('SELECT slug FROM categories').all();
+    (cats.results || []).forEach(c => {
+      if (c.slug) urls.push(origin + '/?category=' + encodeURIComponent(c.slug));
+    });
+  } catch (e) {
+    console.error('[API] 读取分类失败(跳过分类页清除):', e);
+  }
+  await purgeAllCache(urls);
 }
 
 /**
