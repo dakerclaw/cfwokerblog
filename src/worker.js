@@ -4,7 +4,6 @@
 import { html, errorResponse, handleOptions, getCorsHeaders, escapeHtml } from './lib/utils.js';
 import { initDB, getSettings } from './lib/db.js';
 import { authenticateRequest, verifyPasswordHash } from './lib/auth.js';
-import { withCache } from './lib/cache.js';
 import { handleAPI } from './api.js';
 import { getFrontendHTML } from './views/frontend.js';
 import { getPostHTML } from './views/post.js';
@@ -117,13 +116,16 @@ export default {
 // ==================== 页面处理 ====================
 
 /**
- * 首页（带缓存）
+ * 首页
+ * 注意：首页会被 Cloudflare 边缘缓存（Dashboard 的 Edge Cache TTL 规则）。
+ * 这里不让浏览器长效缓存（no-cache，每次重新校验），主题/资料改动后能尽快生效；
+ * 边缘层缓存在后台“保存设置”时由 purgeFrontendCache 主动清除。
  */
 async function handleFrontendPage(request, env, ctx) {
-  return withCache(request, async () => {
-    const settings = await getSettings(env);
-    return html(getFrontendHTML(settings));
-  }, 300); // 缓存 5 分钟
+  const settings = await getSettings(env);
+  const res = html(getFrontendHTML(settings));
+  res.headers.set('Cache-Control', 'no-cache');
+  return res;
 }
 
 /**
