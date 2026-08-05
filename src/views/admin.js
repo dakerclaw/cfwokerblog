@@ -261,8 +261,6 @@ export function getAdminHTML() {
       table { min-width: 600px; font-size: 13px; }
       th { font-size: 13px !important; padding: 10px 12px !important; }
       td { font-size: 13px !important; padding: 10px 12px !important; }
-      /* 封面图区域 */
-      .cover-upload { min-height: 60px; }
       /* 自定义下拉 */
       .custom-select-dropdown { max-height: 200px; }
       .w-33, .w-50, .w-60 { width: 100% !important; }
@@ -412,22 +410,6 @@ export function getAdminHTML() {
                       <span class="radio-label">有</span>
                     </label>
                     <input v-if="form.passwordType === 'has'" v-model="form.password" type="password" placeholder="请输入密码" style="flex:1">
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>封面图片</label>
-                  <input v-model="form.cover_image" @input="coverPreview=form.cover_image" placeholder="输入外链地址" style="width:100%;margin-bottom:8px">
-                  <div style="display:flex;gap:12px;align-items:center;justify-content:center">
-                    <div @dragover.prevent="$event.currentTarget.style.borderColor='#19c8b9'" @dragleave="$event.currentTarget.style.borderColor='#c4b89e'" @drop.prevent="$event.currentTarget.style.borderColor='#c4b89e';handleCoverDrop($event)" @click="$event.currentTarget.querySelector('input[type=file]').click()" style="width:200px;height:200px;border:2px dashed #c4b89e;border-radius:12px;background:#f0e8d8;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;cursor:pointer;transition:border-color 0.2s">
-                      <input type="file" @change="handleCoverChange" accept="image/*" @click.stop style="display:none">
-                      <img v-if="coverPreview" :src="coverPreview" style="width:200px;height:200px;object-fit:cover;pointer-events:none">
-                      <p v-else style="color:#9f927d;font-size:13px;pointer-events:none">点击或拖拽上传</p>
-                    </div>
-                    <div style="display:flex;flex-direction:column;gap:8px">
-                      <button type="button" @click="$event.target.closest('div').querySelector('input[type=file]').click()" style="padding:8px 20px;background:#19c8b9;color:#fff;border:none;border-radius:50px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 3px 0 0 #11a89b;white-space:nowrap">{{coverPreview ? '更换' : '上传'}}</button>
-                      <input type="file" @change="handleCoverChange" accept="image/*" style="display:none">
-                      <button v-if="coverPreview" @click="deleteCover" style="padding:8px 20px;background:#e05a5a;color:#fff;border:none;border-radius:50px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 3px 0 0 #c94444;white-space:nowrap">删除</button>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -769,8 +751,7 @@ export function getAdminHTML() {
         const password = ref('');
         const posts = ref([]);
         const editingId = ref(null);
-        const form = ref({ title: '', content: '', category: '', tags: '', status: 'draft', cover_image: '', password: '', passwordType: '', published_at: new Date().toISOString().split('T')[0] });
-        const coverPreview = ref('');
+        const form = ref({ title: '', content: '', category: '', tags: '', status: 'draft', password: '', passwordType: '', published_at: new Date().toISOString().split('T')[0] });
         const toast = ref('');
         const categories = ref([]);
         const currentPage = ref('posts');
@@ -820,34 +801,15 @@ export function getAdminHTML() {
         });
         const postPage = ref(1);
         const postPageSize = 10;
-        const openAdd = () => { editingId.value = 'new'; form.value = { title: '', content: '', category: '', tags: '', status: 'draft', cover_image: '', password: '', passwordType: '', published_at: new Date().toISOString().split('T')[0] }; coverPreview.value = ''; };
+        const openAdd = () => { editingId.value = 'new'; form.value = { title: '', content: '', category: '', tags: '', status: 'draft', password: '', passwordType: '', published_at: new Date().toISOString().split('T')[0] }; };
         const cancelNewPost = async () => { const { confirmed } = await showConfirm('确认取消', '未保存的内容将丢失'); if (confirmed) { editingId.value = null; } };
-        const toggleEdit = (p) => { if (editingId.value === p.id) { editingId.value = null; } else { editingId.value = p.id; form.value = { title: p.title, content: p.content, category: p.category, tags: p.tags, status: p.status, cover_image: p.cover_image || '', password: p.password || '', passwordType: p.password ? 'has' : '', published_at: p.published_at ? p.published_at.split('T')[0] : new Date().toISOString().split('T')[0] }; coverPreview.value = p.cover_image || ''; } };
+        const toggleEdit = (p) => { if (editingId.value === p.id) { editingId.value = null; } else { editingId.value = p.id; form.value = { title: p.title, content: p.content, category: p.category, tags: p.tags, status: p.status, password: p.password || '', passwordType: p.password ? 'has' : '', published_at: p.published_at ? p.published_at.split('T')[0] : new Date().toISOString().split('T')[0] }; } };
         const savePost = async () => { if (form.value.passwordType === 'has' && !form.value.password) { alert('请输入文章密码'); return; } const { confirmed } = await showConfirm('确认保存', '确定保存？'); if (!confirmed) return; try { const postData = { ...form.value }; if (postData.passwordType !== 'has') { postData.password = ''; } delete postData.passwordType; if (editingId.value === 'new') { await api('/api/admin/post', { method: 'POST', data: postData }); } else { await api('/api/admin/post?id=' + editingId.value, { method: 'PUT', data: postData }); } editingId.value = null; loadPosts(); showToast('保存成功'); } catch (e) { alert('保存失败'); } };
         const deletePost = async (id) => { const { confirmed } = await showConfirm('确认删除', '移到回收站？'); if (!confirmed) return; try { await api('/api/admin/post?id=' + id, { method: 'DELETE' }); loadPosts(); loadTrash(); showToast('已移到回收站'); } catch (e) { showToast('删除失败'); } };
         const editCategory = (c) => { editingCategory.value = c.id; categoryForm.value = { name: c.name, slug: c.slug, description: c.description || '' }; };
         const saveCategory = async () => { if (!categoryForm.value.name || !categoryForm.value.slug) { alert('请填写'); return; } const { confirmed } = await showConfirm('确认保存', '确定？'); if (!confirmed) return; try { const d = { ...categoryForm.value }; if (editingCategory.value && editingCategory.value !== 'new') d.id = editingCategory.value; await api('/api/category', { method: 'POST', data: d }); loadCategories(); editingCategory.value = null; categoryForm.value = { name: '', slug: '', description: '' }; showToast('保存成功'); } catch (e) { alert('保存失败'); } };
         const deleteCategory = async (id) => { const { confirmed } = await showConfirm('确认删除', '确定？'); if (!confirmed) return; try { await api('/api/category?id=' + id, { method: 'DELETE' }); loadCategories(); showToast('已删除'); } catch (e) { showToast('删除分类失败'); } };
         const saveSettings = async () => { if (settingsForm.value.pinnedType === 'has' && !settingsForm.value.pinned_post_id) { alert('请输入置顶文章编号'); return; } try { const data = { ...settingsForm.value }; if (data.pinnedType !== 'has') { data.pinned_post_id = ''; } delete data.pinnedType; const r = await api('/api/settings', { method: 'POST', data: data }); if (r.data && r.data.success) { showToast('保存成功'); } else { alert('保存失败: ' + (r.data ? r.data.error : '未知错误')); } } catch (e) { console.error('保存设置错误:', e); alert('保存失败: ' + (e.response ? e.response.data.error || e.response.statusText : e.message)); } };
-        const handleCoverChange = async (e) => { const f = e.target.files[0]; if (f) await uploadFile(f); };
-        const handleCoverDrop = async (e) => { const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('image/')) await uploadFile(f); };
-        const handleDrop = async (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('image/')) await uploadFile(f); };
-        const uploadFile = async (f) => { if (f.size > 2097152) { alert('文件大小不能超过 2MB'); return; } const fd = new FormData(); fd.append('file', f); const r = await fetch('/api/upload', { method: 'POST', body: fd }); const d = await r.json(); if (d.url) { form.value.cover_image = d.url; coverPreview.value = d.url; } };
-        const deleteCover = async () => {
-          const imageUrl = form.value.cover_image;
-          if (!imageUrl) return;
-          
-          const { confirmed } = await showConfirm(
-            '删除封面图片',
-            '确定要删除封面图片吗？'
-          );
-          
-          if (!confirmed) return;
-          
-          form.value.cover_image = '';
-          coverPreview.value = '';
-          showToast('封面图片已清除');
-        };
         const restorePost = async (id) => { const { confirmed } = await showConfirm('确认恢复', '将文章恢复为草稿？'); if (!confirmed) return; try { await api('/api/admin/restore', { method: 'POST', data: { id } }); loadPosts(); loadTrash(); showToast('已恢复'); } catch (e) { showToast('恢复失败'); } };
         const permanentDelete = async (id) => { const { confirmed } = await showConfirm('确认删除', '彻底删除？不可恢复！'); if (!confirmed) return; try { await api('/api/admin/permanent-delete', { method: 'POST', data: { id } }); loadTrash(); showToast('已删除'); } catch (e) { showToast('删除失败'); } };
 
@@ -1008,7 +970,7 @@ export function getAdminHTML() {
 
         watch(currentPage, (v) => { localStorage.setItem('adminPage', v); });
         onMounted(() => { check(); document.addEventListener('click', closeAllSelects); });
-        return { logged, username, password, login, logout, posts, editingId, form, coverPreview, toast, openAdd, cancelNewPost, toggleEdit, handleCoverChange, handleCoverDrop, handleDrop, deleteCover, savePost, deletePost, categories, currentPage, postPage, postPageSize, categoryForm, saveCategory, deleteCategory, editCategory, editingCategory, settingsForm, saveSettings, trashPosts, restorePost, permanentDelete, confirmModal, showConfirm, insertMd, applyTheme, customSelects, toggleSelect, selectOption, getSelectLabel, showImportModal, importFileName, importFileData, importing, importResult, handleImportFile, importPosts, currentPinnedId, setPinnedPost };
+        return { logged, username, password, login, logout, posts, editingId, form, toast, openAdd, cancelNewPost, toggleEdit, savePost, deletePost, categories, currentPage, postPage, postPageSize, categoryForm, saveCategory, deleteCategory, editCategory, editingCategory, settingsForm, saveSettings, trashPosts, restorePost, permanentDelete, confirmModal, showConfirm, insertMd, applyTheme, customSelects, toggleSelect, selectOption, getSelectLabel, showImportModal, importFileName, importFileData, importing, importResult, handleImportFile, importPosts, currentPinnedId, setPinnedPost };
       }
     }).mount('#app');
   <\/script>

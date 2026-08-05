@@ -45,8 +45,6 @@ export function getFrontendHTML(settings) {
     #app { display: flex; flex-direction: column; gap: 28px; }
     .post-card { background: var(--card-bg, #f7f3df); border-radius: 20px; overflow: visible; box-shadow: 0 4px 10px rgba(107, 92, 67, 0.42); display: flex; flex-direction: row; transition: all 0.3s ease; border: 2px solid var(--card-border, #e8e0cc); }
     .post-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(114, 93, 66, 0.15); }
-    .post-card .post-cover { width: 220px; flex-shrink: 0; background: var(--card-border, #e8e0cc); display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 18px 0 0 18px; }
-    .post-card .post-cover img { width: 100%; height: 100%; object-fit: cover; }
     .post-card .post-content { flex: 1; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; overflow: hidden; }
     .post-card h2 { font-size: 1.35em; margin-bottom: 8px; color: var(--text-primary, #794f27); font-weight: 700; }
     .post-card h2 a { color: var(--text-primary, #794f27); text-decoration: none; }
@@ -93,7 +91,6 @@ export function getFrontendHTML(settings) {
       .post-list { width: 100%; }
       #app { gap: 20px; }
       .post-card { flex-direction: column; border-radius: 16px; }
-      .post-card .post-cover { display: none; }
       .post-card .post-content { padding: 14px; }
       .post-card h2 { font-size: 1em; }
       .post-card .meta { font-size: 0.75em; }
@@ -325,7 +322,6 @@ export function getFrontendHTML(settings) {
         var formatDate = function(d) { var dt = new Date(d); return dt.getFullYear() + String(dt.getMonth()+1).padStart(2,'0'); };
         html += posts.map(function(post) {
           var isPinned = String(post.id) === String(pinned_post_id);
-          var cover = post.cover_image ? '<img src="' + post.cover_image + '" alt="' + post.title + '" loading="lazy">' : '<span style="color:var(--text-secondary, #9f927d)">封面</span>';
           var tags = post.tags ? post.tags.split(',').map(function(t) {
             return '<span style="display:inline-block;padding:3px 10px;background:var(--card-bg, #e6f9f6);color:var(--btn-shadow, #11a89b);font-size:0.72em;font-weight:700;margin-right:6px;border:1.5px solid var(--btn-bg, #19c8b9);border-radius:50px">' + t.trim() + '</span>';
           }).join('') : '';
@@ -333,7 +329,6 @@ export function getFrontendHTML(settings) {
           var excerpt = post.password ? '🔒 该文章受到密码保护' : escapeHtml(stripMarkdown(rawText, 80));
           var pinBadge = isPinned ? '<img src="/icon/pin-post.png" style="position:absolute;top:12px;right:12px;width:28px;height:28px;z-index:1">' : '';
           return '<article class="post-card" style="position:relative' + (isPinned ? ';border:2px solid #ffd700;box-shadow:0 4px 16px rgba(255,215,0,0.3)' : '') + '">' +
-            '<div class="post-cover">' + cover + '</div>' +
             pinBadge +
             '<div class="post-content">' +
               '<h2><a href="/post/' + formatDate(post.created_at) + '/' + post.id + '">' + post.title + '</a></h2>' +
