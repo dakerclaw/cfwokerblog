@@ -545,7 +545,7 @@ export function getAdminHTML() {
                 </div>
                 <div class="form-group">
                   <label>主题风格</label>
-                  <div style="display:flex;align-items:center;gap:12px">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
                     <label class="radio-item" style="margin:0">
                       <input type="radio" value="animal-forest" v-model="settingsForm.site_theme" @change="applyTheme()">
                       <span class="radio-custom"></span>
