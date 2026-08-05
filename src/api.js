@@ -429,15 +429,20 @@ async function handleSitemap(request, env) {
   const baseUrl = `${url.protocol}//${url.host}`;
 
   const { results } = await env.DB.prepare(
-    "SELECT slug, updated_at FROM posts WHERE status='published' ORDER BY updated_at DESC"
+    "SELECT slug, created_at, updated_at FROM posts WHERE status='published' ORDER BY updated_at DESC"
   ).all();
 
-  const urls = results.map(p => `  <url>
-    <loc>${baseUrl}/post/${p.slug}</loc>
-    <lastmod>${p.updated_at}</lastmod>
+  const urls = results.map(p => {
+    // 详情页路由要求 /post/YYYYMM/ID 格式（见 worker.js handlePostPage），sitemap 必须与之保持一致
+    const d = new Date(p.created_at);
+    const ym = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0');
+    return `  <url>
+    <loc>${baseUrl}/post/${ym}/${p.id}</loc>
+    <lastmod>${p.updated_at || p.created_at}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
-  </url>`).join('\n');
+  </url>`;
+  }).join('\n');
 
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">

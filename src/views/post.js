@@ -198,6 +198,35 @@ export function getPostHTML(post, settings, requestUrl) {
   <button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
   <footer>${settings.site_footer ? escapeHtml(settings.site_footer) : '&copy; 2026 ' + escapeHtml(siteName)}</footer>
   <script>
+    // 浏览器端内联工具函数（与 src/lib/utils.js 保持一致，避免 ReferenceError）
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+    function stripMarkdown(str, maxLen) {
+      if (!str) return '';
+      var text = String(str);
+      text = text.replace(/\`\`\`[\\s\\S]*?\`\`\`/g, ' ').replace(/~~~[\\s\\S]*?~~~/g, ' ');
+      text = text.replace(/\`([^\`\\n]+)\`/g, '$1');
+      text = text.replace(/!\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1');
+      text = text.replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1');
+      text = text.replace(/<(https?:\\/\\/[^>]+)>/g, '$1');
+      text = text.replace(/^#{1,6}\\s+/gm, '').replace(/^>\\s?/gm, '').replace(/^[-*+]\\s+/gm, '');
+      text = text.replace(/(\\*\\*|__)(.*?)\\1/g, '$2');
+      text = text.replace(/(\\*)(.*?)\\1/g, '$2');
+      text = text.replace(/~~(.*?)~~/g, '$1');
+      text = text.replace(/<[^>]+>/g, ' ');
+      text = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
+      text = text.replace(/\\s+/g, ' ').trim();
+      maxLen = maxLen || 120;
+      if (text.length > maxLen) { text = text.substring(0, maxLen).trim() + '...'; }
+      return text;
+    }
     fetch('/api/stats').then(function(r){return r.json()}).then(function(s){
       document.getElementById('stat-posts').textContent = s.postCount;
       document.getElementById('stat-cats').textContent = s.catCount;
