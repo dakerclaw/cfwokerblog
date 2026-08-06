@@ -89,6 +89,10 @@ export function getPostHTML(post, settings, requestUrl) {
     .post-article p { margin: 0.8em 0; line-height: 1.8; }
     .post-article img { max-width: 100%; height: auto; margin: 1em 0; border-radius: 12px; cursor: zoom-in; }
     .post-article img:hover { transform: scale(1.02); transition: transform 0.2s; }
+    .post-article table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 0.95em; overflow: hidden; border-radius: 12px; }
+    .post-article th, .post-article td { border: 1px solid var(--card-border, #e8e0cc); padding: 10px 14px; text-align: left; }
+    .post-article th { background: var(--body-bg, #f8f8f0); font-weight: 700; color: var(--text-primary, #794f27); }
+    .post-article tbody tr:nth-child(even) { background: rgba(0, 0, 0, 0.02); }
     .icon-img { cursor: default !important; pointer-events: none; }
     .icon-img:hover { transform: none !important; }
     .post-meta { color: var(--text-secondary, #9f927d); font-size: 0.85em; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid var(--card-border, #e8e0cc); font-weight: 600; }
