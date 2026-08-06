@@ -33,7 +33,7 @@ export function getAdminHTML() {
     .sidebar-menu a { display: flex; align-items: center; justify-content: center; padding: 14px 16px; color: rgba(255,255,255,0.85); text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 16px; margin-bottom: 6px; transition: all 0.25s ease; }
     .sidebar-menu a:hover { background: #d6dff0; color: #fff; }
     .sidebar-menu a.active { background: #B7C6E5; color: #fff; box-shadow: 0 3px 0 0 #9aaed4; }
-    .sidebar-footer .nav-home { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 14px; padding: 14px 16px; color: rgba(255,255,255,0.85); text-decoration: none; font-weight: 600; font-size: 15px; border-radius: 12px; transition: all 0.25s ease; }
+    .sidebar-footer .nav-home { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 14px; padding: 14px 16px; color: rgba(255,255,255,0.85); text-decoration: none; font-weight: 600; font-size: 16px; border-radius: 12px; transition: all 0.25s ease; }
     .sidebar-footer .nav-home:hover { background: #d6dff0; color: #fff; }
     .sidebar-footer .nav-home .nav-home-icon { font-size: 16px; line-height: 1; }
     .sidebar-menu a .nav-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-right: 10px; }
@@ -41,7 +41,7 @@ export function getAdminHTML() {
     .sidebar-header-icon { width: 24px; height: 24px; margin-right: 10px; }
     .sidebar-footer-icon { width: 18px; height: 18px; margin-right: 8px; }
     .sidebar-footer { padding: 16px 20px; border-top: 2px solid rgba(255,255,255,0.2); }
-    .sidebar-footer button { width: 100%; padding: 10px; background: rgba(255,255,255,0.2); color: #fff; border: none; border-radius: 50px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 15px; transition: all 0.25s ease; }
+    .sidebar-footer button { width: 100%; padding: 14px 16px; background: rgba(255,255,255,0.2); color: #fff; border: none; border-radius: 50px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.25s ease; }
     .sidebar-footer button:hover { background: #d6dff0; color: #fff; }
     .main-content { flex: 1; padding: 30px; }
     .page-header { margin-bottom: 24px; }
