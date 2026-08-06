@@ -72,6 +72,9 @@ export function getPostHTML(post, settings, requestUrl) {
     .content-area { flex: 1; min-width: 0; }
     .profile-card { background: var(--card-bg, #f7f3df); border-radius: 20px; padding: 24px; box-shadow: 0 4px 10px rgba(107, 92, 67, 0.42); border: 2px solid var(--card-border, #e8e0cc); }
     .profile-card .avatar { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; margin: 0 auto 14px; display: block; border: 3px solid var(--input-border, #c4b89e); background: var(--card-border, #e8e0cc); }
+    .profile-card a.avatar-link { display: block; width: fit-content; margin: 0 auto 14px; text-decoration: none; outline: none; }
+    .profile-card a.avatar-link .avatar { margin: 0; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .profile-card a.avatar-link:hover .avatar { transform: scale(1.06); box-shadow: 0 4px 12px rgba(107, 92, 67, 0.4); }
     .profile-card .name { font-size: 1.1em; font-weight: 700; text-align: center; margin-bottom: 4px; color: var(--text-primary, #794f27); }
     .profile-card .bio { color: var(--text-body, #725d42); font-size: 0.85em; text-align: center; margin-bottom: 14px; }
     .profile-card .stats { display: flex; justify-content: center; gap: 16px; padding-bottom: 14px; }
@@ -143,7 +146,7 @@ export function getPostHTML(post, settings, requestUrl) {
   <main>
     <aside class="sidebar" ${settings.profile_position === 'right' ? 'style="order:2"' : ''}>
       <div class="profile-card">
-        <img class="avatar" src="/icon/profile.png" alt="${escapeHtml(siteAuthor)}">
+        <a href="/admin/" class="avatar-link" title="进入后台" aria-label="进入后台"><img class="avatar" src="/icon/profile.png" alt="${escapeHtml(siteAuthor)}"></a>
         <div class="name">${escapeHtml(siteAuthor)}</div>
         ${settings.site_bio ? `<div class="bio">${escapeHtml(settings.site_bio)}</div>` : ''}
         <div class="stats">
