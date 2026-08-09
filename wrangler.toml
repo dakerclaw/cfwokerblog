@@ -14,16 +14,13 @@ serve_directly = false
 # ============================================
 # D1 数据库绑定
 # ============================================
-#    生产环境（Cloudflare 自动部署）无需在此写死 database_id：
-#   请在 Cloudflare Dashboard 绑定一次即可（Settings → Bindings → Add → D1 Database），
-#   变量名填 DB，选择你已有的 blog-db。绑定信息保存在 Cloudflare 侧，与仓库无关，
-#   因此重新同步上游 / 重新创建数据库都不会再触发「需手动修改 wrangler.toml」的报错。
-#
-#   本地开发（可选）：取消下方注释并填入本地 D1 的 database_id，或直接使用 wrangler dev --local
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "blog-db"
-# database_id = "本地开发的-database-id"
+# 使用 database_name（按名查找，无需写死 database_id）：
+#   - Git 自动部署时 wrangler.toml 自带此绑定，部署后 env.DB 自动连上，无需每次在 Dashboard 手动重新绑定；
+#   - 不写死 UUID，跨账号/跨环境也不会报「database_id 不存在」的错。
+# 前提：Cloudflare 账号下已存在名为 blog-db 的 D1 数据库（binding 名必须与环境变量 env.DB 一致）。
+[[d1_databases]]
+binding = "DB"
+database_name = "blog-db"
 
 
 # CORS 配置已迁移至后台网站设置中
