@@ -33,8 +33,8 @@ export function getFrontendHTML(settings, requestUrl) {
   <meta property="og:description" content="${escapeHtml(siteDesc || siteName + ' - 基于 Cloudflare Workers 构建的轻量级博客')}">
   <meta property="og:site_name" content="${escapeHtml(siteName)}">
   ${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">
-  <meta property="og:image:width" content="200">
-  <meta property="og:image:height" content="200">` : ''}
+  <meta property="og:image:width" content="600">
+  <meta property="og:image:height" content="600">` : ''}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
