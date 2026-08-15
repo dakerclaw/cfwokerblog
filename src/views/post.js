@@ -87,8 +87,9 @@ export function getPostHTML(post, settings, requestUrl) {
     .post-article p { margin: 0.8em 0; line-height: 1.8; }
     .post-article img { max-width: 100%; height: auto; margin: 1em 0; border-radius: 12px; cursor: zoom-in; }
     .post-article img:hover { transform: scale(1.02); transition: transform 0.2s; }
-    .post-article table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 0.95em; overflow: hidden; border-radius: 12px; }
-    .post-article th, .post-article td { border: 1px solid var(--card-border, #e8e0cc); padding: 10px 14px; text-align: left; }
+    .post-article .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 1em 0; }
+    .post-article table { border-collapse: collapse; width: 100%; margin: 0; font-size: 0.95em; overflow: hidden; border-radius: 12px; }
+    .post-article th, .post-article td { border: 1px solid var(--card-border, #e8e0cc); padding: 10px 14px; text-align: left; overflow-wrap: break-word; word-break: break-word; }
     .post-article th { background: var(--body-bg, #f8f8f0); font-weight: 700; color: var(--text-primary, #794f27); }
     .post-article tbody tr:nth-child(even) { background: rgba(0, 0, 0, 0.02); }
     .icon-img { cursor: default !important; pointer-events: none; }
@@ -502,6 +503,15 @@ export function getPostHTML(post, settings, requestUrl) {
       initLightbox();
       // 图片懒加载
       document.querySelectorAll('.post-article img').forEach(function(img) { img.setAttribute('loading', 'lazy'); });
+      // 表格包裹横向滚动容器（移动端防止溢出页面；幂等避免重复包裹）
+      document.querySelectorAll('.post-article table').forEach(function(tbl) {
+        var p = tbl.parentNode;
+        if (p && p.classList && p.classList.contains('table-wrapper')) return;
+        var wrap = document.createElement('div');
+        wrap.className = 'table-wrapper';
+        tbl.parentNode.insertBefore(wrap, tbl);
+        wrap.appendChild(tbl);
+      });
     });
   </script>
   <script>
