@@ -3,12 +3,17 @@
 import { escapeHtml, stripMarkdown } from '../lib/utils.js';
 import { getThemeStyle } from '../lib/themes.js';
 
-export function getFrontendHTML(settings) {
+export function getFrontendHTML(settings, requestUrl) {
   settings = settings || {};
   const siteName = settings.site_name || '我的博客';
   const siteDesc = settings.site_description || '';
   const siteAuthor = settings.site_author || siteName;
   const siteBio = settings.site_bio || '';
+
+  // 绝对地址：微信 og:image 必须是完整 http(s) 网址
+  let origin = '';
+  if (requestUrl) { try { origin = new URL(requestUrl).origin; } catch (e) { origin = ''; } }
+  const ogImage = origin ? origin + '/og-default.png' : '';
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -27,6 +32,9 @@ export function getFrontendHTML(settings) {
   <meta property="og:title" content="${escapeHtml(siteName)}">
   <meta property="og:description" content="${escapeHtml(siteDesc || siteName + ' - 基于 Cloudflare Workers 构建的轻量级博客')}">
   <meta property="og:site_name" content="${escapeHtml(siteName)}">
+  ${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">
+  <meta property="og:image:width" content="630">
+  <meta property="og:image:height" content="630">` : ''}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">

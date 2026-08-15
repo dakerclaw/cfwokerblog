@@ -16,10 +16,8 @@ export function getPostHTML(post, settings, requestUrl) {
   const postPath = '/post/' + new Date(post.created_at).getFullYear() +
     String(new Date(post.created_at).getMonth() + 1).padStart(2, '0') + '/' + post.id;
   const postUrl = origin ? origin + postPath : postPath;
-  // 封面若是外链绝对网址则直接用，否则回退到站点默认分享图（base64 封面微信无法识别）
-  const coverIsAbs = /^https?:\/\//i.test(post.cover_image || '');
-  const useDefaultOg = !coverIsAbs;
-  const ogImage = coverIsAbs ? post.cover_image : (origin ? origin + '/og-default.png' : '');
+  // 已删除封面设置，所有分享统一使用站点默认分享图（正方形，微信缩略图兼容性更好）
+  const ogImage = origin ? origin + '/og-default.png' : '';
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -38,9 +36,9 @@ export function getPostHTML(post, settings, requestUrl) {
   <meta property="og:title" content="${escapeHtml(post.title)}">
   <meta property="og:description" content="${escapeHtml(postExcerpt)}">
   <meta property="og:site_name" content="${escapeHtml(siteName)}">
-  ${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">${useDefaultOg ? `
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">` : ''}` : ''}
+  ${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">
+  <meta property="og:image:width" content="630">
+  <meta property="og:image:height" content="630">` : ''}
   <meta property="article:published_time" content="${post.published_at || post.created_at}">
   <meta property="article:modified_time" content="${post.updated_at}">
   ${post.category ? `<meta property="article:section" content="${escapeHtml(post.category)}">` : ''}

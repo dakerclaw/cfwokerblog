@@ -123,7 +123,7 @@ export default {
  */
 async function handleFrontendPage(request, env, ctx) {
   const settings = await getSettings(env);
-  const res = html(getFrontendHTML(settings));
+  const res = html(getFrontendHTML(settings, request.url));
   res.headers.set('Cache-Control', 'no-cache');
   return res;
 }
