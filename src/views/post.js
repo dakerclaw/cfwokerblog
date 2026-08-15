@@ -37,8 +37,8 @@ export function getPostHTML(post, settings, requestUrl) {
   <meta property="og:description" content="${escapeHtml(postExcerpt)}">
   <meta property="og:site_name" content="${escapeHtml(siteName)}">
   ${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">
-  <meta property="og:image:width" content="630">
-  <meta property="og:image:height" content="630">` : ''}
+  <meta property="og:image:width" content="200">
+  <meta property="og:image:height" content="200">` : ''}
   <meta property="article:published_time" content="${post.published_at || post.created_at}">
   <meta property="article:modified_time" content="${post.updated_at}">
   ${post.category ? `<meta property="article:section" content="${escapeHtml(post.category)}">` : ''}
