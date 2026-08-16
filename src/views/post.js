@@ -183,7 +183,7 @@ export function getPostHTML(post, settings, requestUrl) {
         <h1>${escapeHtml(post.title)}</h1>
         <div class="post-meta">
           <span><img src="/icon/category.png" class="icon-img" style="width:18px;height:18px;vertical-align:middle;margin-right:6px">${escapeHtml(post.category)}</span>
-          <span>${(function(d){return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'})(new Date(post.created_at))}</span>
+          <span>${(function(d){return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'})(new Date(post.published_at || post.created_at))}</span>
         </div>
         <div id="post-content" style="line-height:1.8"></div>
         ${post.tags ? `<div style="margin-top:24px;padding-top:16px;border-top:2px solid var(--card-border, #e8e0cc);display:flex;flex-wrap:wrap;gap:8px">${post.tags.split(',').map(t =>
