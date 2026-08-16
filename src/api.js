@@ -306,7 +306,7 @@ async function handleGetPosts(request, env) {
 
   // 获取分页数据
   const { results } = await env.DB.prepare(
-    `SELECT id, title, slug, excerpt, cover_image, category, tags, view_count, created_at, password FROM posts ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    `SELECT id, title, slug, excerpt, cover_image, category, tags, view_count, created_at, published_at, password FROM posts ${where} ORDER BY COALESCE(published_at, created_at) DESC LIMIT ? OFFSET ?`
   ).bind(...params, limit, offset).all();
 
   // 获取置顶文章 ID
@@ -369,7 +369,7 @@ async function handleGetStats(env) {
     env.DB.prepare("SELECT COUNT(*) as cnt FROM posts WHERE status='published'").first(),
     env.DB.prepare("SELECT COUNT(*) as cnt FROM categories").first(),
     env.DB.prepare("SELECT tags FROM posts WHERE status='published' AND tags IS NOT NULL AND tags != ''").all(),
-    env.DB.prepare("SELECT created_at FROM posts WHERE status='published' ORDER BY created_at DESC LIMIT 1").first()
+    env.DB.prepare("SELECT published_at, created_at FROM posts WHERE status='published' ORDER BY COALESCE(published_at, created_at) DESC LIMIT 1").first()
   ]);
 
   // 统计去重标签数
@@ -384,7 +384,7 @@ async function handleGetStats(env) {
     postCount: postCount?.cnt ?? 0,
     catCount: catCount?.cnt ?? 0,
     tagCount: tagSet.size,
-    latestDate: latestPost?.created_at || ''
+    latestDate: latestPost?.published_at || latestPost?.created_at || ''
   });
   resp.headers.set('Cache-Control', 'public, max-age=60');
   return resp;
@@ -430,7 +430,7 @@ async function handleSitemap(request, env) {
   const baseUrl = `${url.protocol}//${url.host}`;
 
   const { results } = await env.DB.prepare(
-    "SELECT slug, created_at, updated_at FROM posts WHERE status='published' ORDER BY updated_at DESC"
+    "SELECT slug, created_at, updated_at, published_at FROM posts WHERE status='published' ORDER BY COALESCE(published_at, created_at) DESC"
   ).all();
 
   const urls = results.map(p => {
@@ -464,7 +464,7 @@ ${urls}
 
 async function handleAdminGetPosts(env) {
   const { results } = await env.DB.prepare(
-    "SELECT * FROM posts WHERE status != 'trash' ORDER BY created_at DESC"
+    "SELECT * FROM posts WHERE status != 'trash' ORDER BY COALESCE(published_at, created_at) DESC"
   ).all();
   return json(results || []);
 }
