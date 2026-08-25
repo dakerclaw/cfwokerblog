@@ -478,27 +478,27 @@ export function getAdminHTML() {
             <button class="btn delete" v-if="trashPosts.length>0" @click="emptyTrash" style="margin-bottom:0">清空回收站</button>
           </div>
           <div v-if="trashPosts.length===0" class="card" style="text-align:center;color:#9f927d">回收站是空的</div>
-          <div class="w-33"><div v-if="trashPosts.length > 0" class="card" style="padding:0;overflow:hidden">
-            <table style="width:100%;border-collapse:collapse">
+          <div class="w-60"><div v-if="trashPosts.length > 0" class="card" style="padding:0;overflow:hidden">
+            <table style="width:100%;border-collapse:collapse;table-layout:auto">
               <thead>
                 <tr style="background:#f0e8d8">
-                  <th style="padding:16px 16px;text-align:center;color:#794f27;font-weight:700;font-size:15px;width:80px;white-space:nowrap">删除</th>
-                  <th style="padding:16px 16px;text-align:center;color:#794f27;font-weight:700;font-size:15px;width:80px;white-space:nowrap">恢复</th>
-                  <th style="padding:16px 16px;text-align:center;color:#794f27;font-weight:700;font-size:15px;width:60px">ID</th>
-                  <th style="padding:16px 16px;text-align:left;color:#794f27;font-weight:700;font-size:15px">文章标题</th>
-                  <th style="padding:16px 16px;text-align:left;color:#794f27;font-weight:700;font-size:15px;width:150px;white-space:nowrap">分类</th>
-                  <th style="padding:16px 16px;text-align:right;color:#794f27;font-weight:700;font-size:15px;width:120px">发布日期</th>
+                  <th style="padding:16px 16px;text-align:center;color:#794f27;font-weight:700;font-size:15px;width:90px;white-space:nowrap">删除</th>
+                  <th style="padding:16px 16px;text-align:center;color:#794f27;font-weight:700;font-size:15px;width:90px;white-space:nowrap">恢复</th>
+                  <th style="padding:16px 16px;text-align:center;color:#794f27;font-weight:700;font-size:15px;width:70px">ID</th>
+                  <th style="padding:16px 16px;text-align:left;color:#794f27;font-weight:700;font-size:15px;min-width:280px">文章标题</th>
+                  <th style="padding:16px 16px;text-align:left;color:#794f27;font-weight:700;font-size:15px;width:140px;white-space:nowrap">分类</th>
+                  <th style="padding:16px 16px;text-align:right;color:#794f27;font-weight:700;font-size:15px;width:160px;white-space:nowrap">发布日期</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="post in trashPosts" :key="post.id" style="border-top:1px solid #e8e0cc">
                   <td style="padding:14px 16px;text-align:center;white-space:nowrap"><button class="delete" @click="permanentDelete(post.id)" style="padding:5px 14px;border:none;border-radius:50px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;white-space:nowrap">删除</button></td>
                   <td style="padding:14px 16px;text-align:center;white-space:nowrap"><button class="edit" @click="restorePost(post.id)" style="padding:5px 14px;border:none;border-radius:50px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;white-space:nowrap">恢复</button></td>
-                  <td style="padding:14px 16px;text-align:center;color:#9f927d;font-size:14px">#{{post.id}}</td>
-                  <td style="padding:14px 16px;color:#794f27;font-weight:600;font-size:16px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{post.title}}</td>
+                  <td style="padding:14px 16px;text-align:center;color:#9f927d;font-size:14px;white-space:nowrap">#{{post.id}}</td>
+                  <td style="padding:14px 16px;color:#794f27;font-weight:600;font-size:16px;min-width:280px;overflow-wrap:break-word;word-break:break-word">{{post.title}}</td>
                   <td style="padding:14px 16px;color:#9f927d;font-size:15px;white-space:nowrap">{{post.category}}</td>
-                  
-                  <td style="padding:14px 16px;text-align:right;color:#9f927d;font-size:15px">{{new Date(post.published_at || post.created_at).toLocaleDateString('zh-CN')}}</td>
+
+                  <td style="padding:14px 16px;text-align:right;color:#9f927d;font-size:15px;white-space:nowrap">{{new Date(post.published_at || post.created_at).toLocaleDateString('zh-CN')}}</td>
                 </tr>
               </tbody>
             </table>
