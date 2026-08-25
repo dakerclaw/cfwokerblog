@@ -302,14 +302,17 @@ export function getAdminHTML() {
           <!-- 文章列表 -->
           <div v-if="!editingId">
           <div class="page-header"><h2>文章管理</h2></div>
-          <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
             <button class="btn" @click="openAdd()">新建文章</button>
             <button class="btn btn-import" @click="showImportModal=true">导入文章</button>
+            <button class="btn delete" @click="batchDeletePosts" :disabled="selectedPosts.length===0" :style="{opacity:selectedPosts.length===0?0.4:1,cursor:selectedPosts.length===0?'not-allowed':'pointer'}">批量删除{{selectedPosts.length>0 ? ' ('+selectedPosts.length+')' : ''}}</button>
+            <button v-if="selectedPosts.length>0" class="btn btn-cancel" @click="selectedPosts=[]" style="padding:8px 16px;font-size:14px">取消选择</button>
           </div>
           <div class="w-60"><div class="card" style="padding:0;overflow:hidden">
             <table style="width:100%;border-collapse:collapse">
               <thead>
                 <tr style="background:#f0e8d8">
+                  <th style="padding:16px 16px;text-align:center;color:#794f27;font-weight:700;font-size:15px;width:60px;white-space:nowrap"><input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll" style="width:16px;height:16px;cursor:pointer"></th>
                   <th style="padding:16px 16px;text-align:center;color:#794f27;font-weight:700;font-size:15px;width:70px;white-space:nowrap">删除</th>
                   <th style="padding:16px 16px;text-align:center;color:#794f27;font-weight:700;font-size:15px;width:70px;white-space:nowrap">编辑</th>
                   <th style="padding:16px 16px;text-align:center;color:#794f27;font-weight:700;font-size:15px;width:60px">ID</th>
@@ -324,6 +327,7 @@ export function getAdminHTML() {
               <tbody>
                 <template v-for="(post, idx) in posts.slice((postPage-1)*postPageSize, postPage*postPageSize)" :key="post.id">
                   <tr style="border-top:1px solid #e8e0cc">
+                    <td style="padding:14px 16px;text-align:center"><input type="checkbox" :value="post.id" v-model="selectedPosts" style="width:16px;height:16px;cursor:pointer"></td>
                     <td style="padding:14px 16px;text-align:center;white-space:nowrap"><button class="delete" @click="deletePost(post.id)" style="padding:5px 14px;border:none;border-radius:50px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;white-space:nowrap">删除</button></td>
                     <td style="padding:14px 16px;text-align:center;white-space:nowrap"><button class="edit" @click="toggleEdit(post)" style="padding:5px 14px;border:none;border-radius:50px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;white-space:nowrap">编辑</button></td>
                     <td style="padding:14px 16px;text-align:center;color:#9f927d;font-size:14px">#{{post.id}}</td>
@@ -469,7 +473,10 @@ export function getAdminHTML() {
         </div>
 
         <div v-if="currentPage==='trash'">
-          <div class="page-header"><h2>回收站</h2></div>
+          <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
+            <h2>回收站</h2>
+            <button class="btn delete" v-if="trashPosts.length>0" @click="emptyTrash" style="margin-bottom:0">清空回收站</button>
+          </div>
           <div v-if="trashPosts.length===0" class="card" style="text-align:center;color:#9f927d">回收站是空的</div>
           <div class="w-33"><div v-if="trashPosts.length > 0" class="card" style="padding:0;overflow:hidden">
             <table style="width:100%;border-collapse:collapse">
@@ -750,7 +757,7 @@ export function getAdminHTML() {
   </div>
   </div>
   <script>
-    const { createApp, ref, onMounted, watch } = Vue;
+    const { createApp, ref, onMounted, watch, computed } = Vue;
     createApp({
       setup() {
         const logged = ref(false);
@@ -766,6 +773,9 @@ export function getAdminHTML() {
         const categoryForm = ref({ name: '', slug: '', description: '' });
         const editingCategory = ref(null);
         const trashPosts = ref([]);
+        const selectedPosts = ref([]);
+        const isAllSelected = computed(() => posts.value.length > 0 && selectedPosts.value.length === posts.value.length);
+        const toggleSelectAll = () => { selectedPosts.value = isAllSelected.value ? [] : posts.value.map(p => p.id); };
         const confirmModal = ref({ show: false, title: '', message: '', onConfirm: null });
         // 导入相关状态
         const showImportModal = ref(false);
@@ -813,12 +823,14 @@ export function getAdminHTML() {
         const toggleEdit = (p) => { if (editingId.value === p.id) { editingId.value = null; } else { editingId.value = p.id; form.value = { title: p.title, content: p.content, category: p.category, tags: p.tags, status: p.status, password: p.password || '', passwordType: p.password ? 'has' : '', published_at: p.published_at ? p.published_at.split('T')[0] : new Date().toISOString().split('T')[0] }; } };
         const savePost = async () => { if (form.value.passwordType === 'has' && !form.value.password) { alert('请输入文章密码'); return; } const { confirmed } = await showConfirm('确认保存', '确定保存？'); if (!confirmed) return; try { const postData = { ...form.value }; if (postData.passwordType !== 'has') { postData.password = ''; } delete postData.passwordType; if (editingId.value === 'new') { await api('/api/admin/post', { method: 'POST', data: postData }); } else { await api('/api/admin/post?id=' + editingId.value, { method: 'PUT', data: postData }); } editingId.value = null; loadPosts(); showToast('保存成功'); } catch (e) { alert('保存失败'); } };
         const deletePost = async (id) => { const { confirmed } = await showConfirm('确认删除', '移到回收站？'); if (!confirmed) return; try { await api('/api/admin/post?id=' + id, { method: 'DELETE' }); loadPosts(); loadTrash(); showToast('已移到回收站'); } catch (e) { showToast('删除失败'); } };
+        const batchDeletePosts = async () => { if (selectedPosts.value.length === 0) return; const { confirmed } = await showConfirm('批量删除', '将选中的 ' + selectedPosts.value.length + ' 篇文章移到回收站？'); if (!confirmed) return; try { await api('/api/admin/posts/batch-delete', { method: 'POST', data: { ids: selectedPosts.value } }); selectedPosts.value = []; loadPosts(); loadTrash(); showToast('已移到回收站'); } catch (e) { showToast('删除失败'); } };
         const editCategory = (c) => { editingCategory.value = c.id; categoryForm.value = { name: c.name, slug: c.slug, description: c.description || '' }; };
         const saveCategory = async () => { if (!categoryForm.value.name || !categoryForm.value.slug) { alert('请填写'); return; } const { confirmed } = await showConfirm('确认保存', '确定？'); if (!confirmed) return; try { const d = { ...categoryForm.value }; if (editingCategory.value && editingCategory.value !== 'new') d.id = editingCategory.value; await api('/api/category', { method: 'POST', data: d }); loadCategories(); editingCategory.value = null; categoryForm.value = { name: '', slug: '', description: '' }; showToast('保存成功'); } catch (e) { alert('保存失败'); } };
         const deleteCategory = async (id) => { const { confirmed } = await showConfirm('确认删除', '确定？'); if (!confirmed) return; try { await api('/api/category?id=' + id, { method: 'DELETE' }); loadCategories(); showToast('已删除'); } catch (e) { showToast('删除分类失败'); } };
         const saveSettings = async () => { if (settingsForm.value.pinnedType === 'has' && !settingsForm.value.pinned_post_id) { alert('请输入置顶文章编号'); return; } try { const data = { ...settingsForm.value }; if (data.pinnedType !== 'has') { data.pinned_post_id = ''; } delete data.pinnedType; const r = await api('/api/settings', { method: 'POST', data: data }); if (r.data && r.data.success) { showToast('保存成功'); } else { alert('保存失败: ' + (r.data ? r.data.error : '未知错误')); } } catch (e) { console.error('保存设置错误:', e); alert('保存失败: ' + (e.response ? e.response.data.error || e.response.statusText : e.message)); } };
         const restorePost = async (id) => { const { confirmed } = await showConfirm('确认恢复', '将文章恢复为草稿？'); if (!confirmed) return; try { await api('/api/admin/restore', { method: 'POST', data: { id } }); loadPosts(); loadTrash(); showToast('已恢复'); } catch (e) { showToast('恢复失败'); } };
         const permanentDelete = async (id) => { const { confirmed } = await showConfirm('确认删除', '彻底删除？不可恢复！'); if (!confirmed) return; try { await api('/api/admin/permanent-delete', { method: 'POST', data: { id } }); loadTrash(); showToast('已删除'); } catch (e) { showToast('删除失败'); } };
+        const emptyTrash = async () => { if (trashPosts.value.length === 0) return; const { confirmed, checkboxValue } = await showConfirm('清空回收站', '将彻底删除回收站中的全部 ' + trashPosts.value.length + ' 篇文章？此操作不可恢复！', { checkbox: true, checkboxLabel: '我已知晓此操作不可恢复' }); if (!confirmed || !checkboxValue) return; try { await api('/api/admin/trash/empty', { method: 'POST' }); selectedPosts.value = []; loadTrash(); loadPosts(); showToast('回收站已清空'); } catch (e) { showToast('清空失败'); } };
 
         
         const insertMd = (type) => {

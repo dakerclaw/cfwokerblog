@@ -246,6 +246,12 @@ export async function handleAPI(request, env, path) {
     if (path === '/api/admin/permanent-delete' && method === 'POST') {
       return handlePermanentDelete(request, env);
     }
+    if (path === '/api/admin/posts/batch-delete' && method === 'POST') {
+      return handleBatchDeletePosts(request, env);
+    }
+    if (path === '/api/admin/trash/empty' && method === 'POST') {
+      return handleEmptyTrash(env);
+    }
     if (path === '/api/admin/import-wordpress' && method === 'POST') {
       return handleImportWordPress(request, env);
     }
@@ -564,6 +570,20 @@ async function handleRestorePost(request, env) {
 async function handlePermanentDelete(request, env) {
   const body = await request.json();
   await env.DB.prepare("DELETE FROM posts WHERE id=? AND status='trash'").bind(body.id).run();
+  return json({ success: true });
+}
+
+async function handleBatchDeletePosts(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const ids = Array.isArray(body.ids) ? body.ids.map(Number).filter(id => Number.isInteger(id) && id > 0) : [];
+  if (ids.length === 0) return errorResponse('缺少有效的 ids', 400);
+  const placeholders = ids.map(() => '?').join(',');
+  await env.DB.prepare(`UPDATE posts SET status='trash' WHERE id IN (${placeholders})`).bind(...ids).run();
+  return json({ success: true, count: ids.length });
+}
+
+async function handleEmptyTrash(env) {
+  await env.DB.prepare("DELETE FROM posts WHERE status='trash'").run();
   return json({ success: true });
 }
 
