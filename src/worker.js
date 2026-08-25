@@ -89,6 +89,15 @@ export default {
         return handleIcon(env, path);
       }
 
+      // 本地 vendor 资源（Vue / axios 等第三方库，避免依赖外部 CDN）
+      if (path.startsWith('/vendor/')) {
+        if (env.ASSETS) {
+          const r = await env.ASSETS.fetch(new Request(path));
+          if (r && r.status !== 404) return r;
+        }
+        return new Response('Not Found', { status: 404 });
+      }
+
       // 文章详情页
       if (path.startsWith('/post/')) {
         return handlePostPage(request, env, path, ctx);
