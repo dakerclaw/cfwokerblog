@@ -89,11 +89,15 @@ export default {
         return handleIcon(env, path);
       }
 
-      // 本地 vendor 资源（Vue / axios 等第三方库，避免依赖外部 CDN）
+      // 本地 vendor 资源（Vue / axios / marked / highlight.js 等第三方库，避免依赖外部 CDN）
       if (path.startsWith('/vendor/')) {
         if (env.ASSETS) {
-          const r = await env.ASSETS.fetch(new Request(path));
-          if (r && r.status !== 404) return r;
+          try {
+            const r = await env.ASSETS.fetch(new Request(path));
+            if (r && r.status !== 404) return r;
+          } catch (e) {
+            // ASSETS 绑定在资源不存在时会抛异常，这里降级为 404
+          }
         }
         return new Response('Not Found', { status: 404 });
       }

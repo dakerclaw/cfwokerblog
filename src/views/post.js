@@ -137,7 +137,7 @@ export function getPostHTML(post, settings, requestUrl) {
       footer { padding: 20px 16px; font-size: 0.8em; }
     }
   </style>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="/vendor/atom-one-dark.min.css">
 </head>
 <body>
   <button class="mobile-nav-toggle" onclick="toggleNav()">☰</button>
@@ -370,8 +370,8 @@ export function getPostHTML(post, settings, requestUrl) {
       else if (e.key === 'ArrowRight') navLightbox(1);
     });
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js" crossorigin="anonymous"></script>
+  <script src="/vendor/marked.min.js"></script>
+  <script src="/vendor/highlight.min.js"></script>
   <style>
     pre { background: #2b2118; border-radius: 20px; padding: 20px 24px; overflow-x: auto; margin: 14px 0; border: 1px solid #3d3028; box-shadow: none; position: relative; }
     .copy-btn { position: absolute; top: 12px; right: 12px; padding: 4px 12px; background: rgba(232,213,188,0.1); border: 1px solid rgba(232,213,188,0.2); border-radius: 6px; color: rgba(232,213,188,0.6); font-size: 12px; cursor: pointer; transition: all 0.2s; z-index: 2; }
@@ -379,6 +379,8 @@ export function getPostHTML(post, settings, requestUrl) {
     .copy-btn.copied { background: rgba(25,200,185,0.3); color: var(--btn-bg, #19c8b9); border-color: var(--btn-bg, #19c8b9); }
     pre code { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace; font-size: 14px; line-height: 1.7; color: #e8d5bc; background: none; padding: 0; border: none; border-radius: 0; box-shadow: none; display: block; font-weight: 600; }
     code { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace; background: #3d3028; color: #e8d5bc; padding: 3px 10px; border-radius: 6px; font-size: 0.88em; border: 1px solid #4d4038; font-weight: 600; }
+    /* 行内代码：跟随主题的浅色小胶囊，避免在正文里出现成块深色方块 */
+    code.inline-code { background: var(--card-bg, #f0ece2); color: var(--text-primary, #794f27); border: 1px solid var(--card-border, #ddd6c6); padding: 1px 7px; border-radius: 6px; font-size: 0.88em; font-weight: 600; word-break: break-word; }
     .hljs-keyword, .hljs-selector-tag { color: #d4a0e0; }
     .hljs-string, .hljs-attr { color: #a8d4a0; }
     .hljs-number, .hljs-literal { color: #80c0e0; }
@@ -414,8 +416,13 @@ export function getPostHTML(post, settings, requestUrl) {
       var tick = String.fromCharCode(96);
       var nl = String.fromCharCode(10);
 
-      // 第一步：提取代码块，转义 HTML
+      // 第一步：提取代码，转义 HTML
+      // codeBlocks  → 三反引号围栏代码块，还原为块级 pre+code
+      // inlineCodes → 单反引号行内代码，还原为行内 code（必须与围栏块分开，
+      //               否则行内代码会被包成块级 pre 撑成整块，正文被切成碎片）
+      // 注意：本段位于模板字符串内，注释里不能出现反引号字面量。
       var codeBlocks = [];
+      var inlineCodes = [];
       var content = raw;
       // 先处理三反引号代码块
       while (true) {
@@ -432,26 +439,19 @@ export function getPostHTML(post, settings, requestUrl) {
         codeBlocks.push(esc);
         content = content.substring(0, fs) + nl + '%%CB_' + idx + '%%' + nl + content.substring(af + fence.length);
       }
-      // 再处理未闭合的单反引号代码块
+      // 再处理单反引号行内代码
       while (true) {
         var si = content.indexOf(tick);
         if (si === -1) break;
         var ei = content.indexOf(tick, si + 1);
-        if (ei !== -1) {
-          // 有闭合的单反引号
-          var sc = content.substring(si + 1, ei);
-          var esc2 = sc.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
-          var idx2 = codeBlocks.length;
-          codeBlocks.push(esc2);
-          content = content.substring(0, si) + '%%CB_' + idx2 + '%%' + content.substring(ei + 1);
-        } else {
-          // 没有闭合的反引号，取到内容结尾
-          var sc2 = content.substring(si + 1);
-          var esc3 = sc2.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
-          var idx3 = codeBlocks.length;
-          codeBlocks.push(esc3);
-          content = content.substring(0, si) + '%%CB_' + idx3 + '%%';
-        }
+        // 有闭合反引号取中间内容；没有闭合则取到内容结尾
+        var sc = ei !== -1 ? content.substring(si + 1, ei) : content.substring(si + 1);
+        var esc2 = sc.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
+        var idx2 = inlineCodes.length;
+        inlineCodes.push(esc2);
+        content = ei !== -1
+          ? content.substring(0, si) + '%%IC_' + idx2 + '%%' + content.substring(ei + 1)
+          : content.substring(0, si) + '%%IC_' + idx2 + '%%';
       }
 
       // 第二步：用 marked 解析（代码块已被占位符替换，不会有 HTML 问题）
@@ -463,17 +463,22 @@ export function getPostHTML(post, settings, requestUrl) {
         html = '<p>' + content.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split(String.fromCharCode(10)).join('<br>') + '</p>';
       }
 
-      // 第三步：还原代码块，用 <pre><code> 包裹 + 语法高亮
+      // 第三步：先还原行内代码（用行内 <code>，不撑成整块、不加复制按钮）
+      for (var m = 0; m < inlineCodes.length; m++) {
+        html = html.split('%%IC_' + m + '%%').join('<code class="inline-code">' + inlineCodes[m] + '</code>');
+      }
+
+      // 第四步：还原围栏代码块，用 <pre><code> 包裹 + 语法高亮
+      // 注意：用 split/join 做字面替换，避免 String.replace 只换首个匹配、
+      //       以及代码里出现 $& / $' 时被当成替换模式而损坏内容。
       for (var j = 0; j < codeBlocks.length; j++) {
-        var placeholder = '%%CB_' + j + '%%';
         var highlighted = codeBlocks[j];
         try {
           if (typeof hljs !== 'undefined') {
             highlighted = hljs.highlightAuto(codeBlocks[j].split('&amp;').join('&').split('&lt;').join('<').split('&gt;').join('>')).value;
           }
         } catch(e) { highlighted = codeBlocks[j]; }
-        var block = '<pre><code class="hljs">' + highlighted + '</code></pre>';
-        html = html.replace(placeholder, block);
+        html = html.split('%%CB_' + j + '%%').join('<pre><code class="hljs">' + highlighted + '</code></pre>');
       }
 
       // 给所有图片添加懒加载（在插入 DOM 前）
