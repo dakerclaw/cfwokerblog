@@ -1,22 +1,9 @@
 // ==================== 工具函数 ====================
 
 /**
- * JSON 响应
- */
-export function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' }
-  });
-}
-
-/**
- * CSP 头（适度宽松，允许 CDN 和内联脚本/样式）
- */
-export const CSP_HEADER = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self';";
-
-/**
- * HTTP 安全头（API 响应使用）
+ * HTTP 安全头（HTML 页面与 API 响应统一使用）
+ * 单一来源：改这里即可作用于全部响应，避免各处在 headers 里重复硬编码而漏配。
+ * 注：HSTS 由本站域名下发，作用域为 blog.hehudieyiqi.com 及其子域，不影响同级其他子域。
  */
 export const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
@@ -26,16 +13,32 @@ export const SECURITY_HEADERS = {
 };
 
 /**
- * HTML 响应（带安全头，CSP 通过 meta 标签设置以避免阻塞 CDN）
+ * JSON 响应（带安全头）
+ */
+export function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      ...SECURITY_HEADERS
+    }
+  });
+}
+
+/**
+ * HTML 响应（带安全头）
+ *
+ * 关于 CSP：本站**不设置** CSP。页面大量使用内联 <script> 与 onclick 内联事件处理器，
+ * 启用 CSP 就必须保留 'unsafe-inline'，防护收益有限却极易整站白屏。
+ * 原先的 CSP_HEADER 常量从未被任何模块引用，且随 Markdown 依赖本地化（去 jsdelivr）后
+ * 其白名单已完全过时，故已删除，避免后续误以为 CSP 已生效。
  */
 export function html(content, status = 200) {
   return new Response(content, {
     status,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Frame-Options': 'SAMEORIGIN',
-      'Referrer-Policy': 'strict-origin-when-cross-origin'
+      ...SECURITY_HEADERS
     }
   });
 }

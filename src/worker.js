@@ -1,7 +1,7 @@
 // ==================== Cloudflare Light Blog - 主入口 ====================
 // 模块化架构 | HMAC 认证 | 分页 | 缓存 | SEO
 
-import { html, errorResponse, handleOptions, getCorsHeaders, escapeHtml } from './lib/utils.js';
+import { html, json, errorResponse, handleOptions, getCorsHeaders, escapeHtml } from './lib/utils.js';
 import { initDB, getSettings } from './lib/db.js';
 import { authenticateRequest, verifyPasswordHash } from './lib/auth.js';
 import { handleAPI } from './api.js';
@@ -193,7 +193,7 @@ async function verifySiteAuth(cookieValue, password) {
  */
 function showSitePasswordPage(settings) {
   const siteName = settings.site_name || '我的博客';
-  return new Response(`<!DOCTYPE html>
+  return html(`<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -249,9 +249,7 @@ function showSitePasswordPage(settings) {
     };
   </script>
 </body>
-</html>`, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' }
-  });
+</html>`);
 }
 
 /**
@@ -382,10 +380,7 @@ async function handleAdmin(request, env, path) {
   if (env.ADMIN_PASSWORD) {
     const isAuthed = await authenticateRequest(request, env);
     if (!isAuthed) {
-      return new Response(JSON.stringify({ error: '未授权' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json({ error: '未授权' }, 401);
     }
   }
 
