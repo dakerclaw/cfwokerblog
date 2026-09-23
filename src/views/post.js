@@ -377,7 +377,10 @@ export function getPostHTML(post, settings, requestUrl) {
     .copy-btn { position: absolute; top: 12px; right: 12px; padding: 4px 12px; background: rgba(232,213,188,0.1); border: 1px solid rgba(232,213,188,0.2); border-radius: 6px; color: rgba(232,213,188,0.6); font-size: 12px; cursor: pointer; transition: all 0.2s; z-index: 2; }
     .copy-btn:hover { background: rgba(232,213,188,0.2); color: #e8d5bc; }
     .copy-btn.copied { background: rgba(25,200,185,0.3); color: var(--btn-bg, #19c8b9); border-color: var(--btn-bg, #19c8b9); }
-    pre code { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace; font-size: 14px; line-height: 1.7; color: #e8d5bc; background: none; padding: 0; border: none; border-radius: 0; box-shadow: none; display: block; font-weight: 600; }
+    pre code { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace; font-size: 14px; line-height: 1.7; color: #e8d5bc; background: none; padding: 0; border: none; border-radius: 0; box-shadow: none; display: block; font-weight: 600; white-space: pre; }
+    /* 中文正文块（无语言标记的围栏块）：长行折行显示，避免被容器截断而必须横向拖动。
+       仍保留等宽字体 —— 清单的方框、决策树的竖线都靠等宽对齐，换成比例字体就会散开。 */
+    pre.block-text code { white-space: pre-wrap; overflow-wrap: break-word; }
     code { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace; background: #3d3028; color: #e8d5bc; padding: 3px 10px; border-radius: 6px; font-size: 0.88em; border: 1px solid #4d4038; font-weight: 600; }
     /* 行内代码：跟随主题的浅色小胶囊，避免在正文里出现成块深色方块 */
     code.inline-code { background: var(--card-bg, #f0ece2); color: var(--text-primary, #794f27); border: 1px solid var(--card-border, #ddd6c6); padding: 1px 7px; border-radius: 6px; font-size: 0.88em; font-weight: 600; word-break: break-word; }
@@ -424,19 +427,51 @@ export function getPostHTML(post, settings, requestUrl) {
       var codeBlocks = [];
       var inlineCodes = [];
       var content = raw;
+      // 围栏块里装的不一定是代码。本站研报的围栏块几乎都是中文正文——
+      // 每周监测清单、破位决策树、股权结构图这类靠等宽字体对齐的模板，
+      // 实测 23 个块里 22 个中文字符占比在 0.27~0.51，真正的代码接近 0。
+      // 对中文正文跑 hljs.highlightAuto 会瞎猜一个语言，把数字、百分号、
+      // 箭头随机染成五颜六色，所以这里先把它和代码区分开。
+      // 判定：写了语言标记就算代码；没写标记时看中文字符占比（阈值 0.15，
+      // 落在实测的 prose 0.27 / code 0 之间的空档里）。
+      // 用 charCodeAt 而不是正则，避免正则转义在模板字符串里被再解释一次。
+      function isPlainTextBlock(text) {
+        var total = 0;
+        var cjk = 0;
+        for (var i = 0; i < text.length; i++) {
+          var c = text.charCodeAt(i);
+          if (c === 32 || c === 9 || c === 10 || c === 13) continue;
+          total++;
+          if (c >= 0x4e00 && c <= 0x9fff) cjk++;
+        }
+        if (!total) return true;
+        return (cjk / total) >= 0.15;
+      }
       // 先处理三反引号代码块
       while (true) {
         var fs = content.indexOf(nl + fence);
-        if (fs === -1) fs = content.indexOf(fence);
+        var lead = nl.length;                 // 命中「换行 + 围栏」时，围栏前还有一个换行符
+        if (fs === -1) { fs = content.indexOf(fence); lead = 0; }   // 围栏在文档最开头，无前置换行
         if (fs === -1) break;
-        var af = content.indexOf(fence, fs + fence.length);
+        // 注意：fs 指向的是「换行符」，围栏本身占 fs+lead .. fs+lead+2，
+        // 所以正文从 fs + lead + fence.length 开始。
+        // 旧代码写成 fs + fence.length，正好停在最后一个反引号上，
+        // 于是正文首字符变成了那个反引号 —— 之前它只被当作「语言标记」丢掉所以看不出问题，
+        // 现在要靠语言标记判断代码/正文，这个偏差会让每个块都被误判成代码。
+        var bodyFrom = fs + lead + fence.length;
+        var af = content.indexOf(fence, bodyFrom);
         if (af === -1) break;
-        var cc = content.substring(fs + fence.length, af);
+        var cc = content.substring(bodyFrom, af);
         var fn = cc.indexOf(nl);
-        if (fn !== -1) cc = cc.substring(fn + 1);
+        // 围栏后第一行是语言标记（如 js / python），要与正文分开
+        var lang = '';
+        if (fn !== -1) {
+          lang = cc.substring(0, fn).trim();
+          cc = cc.substring(fn + 1);
+        }
         var esc = cc.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
         var idx = codeBlocks.length;
-        codeBlocks.push(esc);
+        codeBlocks.push({ raw: cc, esc: esc, lang: lang, asCode: !!lang || !isPlainTextBlock(cc) });
         content = content.substring(0, fs) + nl + '%%CB_' + idx + '%%' + nl + content.substring(af + fence.length);
       }
       // 再处理单反引号行内代码
@@ -468,17 +503,26 @@ export function getPostHTML(post, settings, requestUrl) {
         html = html.split('%%IC_' + m + '%%').join('<code class="inline-code">' + inlineCodes[m] + '</code>');
       }
 
-      // 第四步：还原围栏代码块，用 <pre><code> 包裹 + 语法高亮
+      // 第四步：还原围栏块
+      // 真代码 → 走 hljs 高亮、保持不折行（宽行横向滚动）；
+      // 中文正文 → 不高亮，加 block-text 类让长行自动折行，
+      //            否则一行中文撑出容器，右侧内容被截断、还要横向拖动才看得到。
       // 注意：用 split/join 做字面替换，避免 String.replace 只换首个匹配、
-      //       以及代码里出现 $& / $' 时被当成替换模式而损坏内容。
+      //       以及内容里出现 $& / $' 时被当成替换模式而损坏。
       for (var j = 0; j < codeBlocks.length; j++) {
-        var highlighted = codeBlocks[j];
-        try {
-          if (typeof hljs !== 'undefined') {
-            highlighted = hljs.highlightAuto(codeBlocks[j].split('&amp;').join('&').split('&lt;').join('<').split('&gt;').join('>')).value;
-          }
-        } catch(e) { highlighted = codeBlocks[j]; }
-        html = html.split('%%CB_' + j + '%%').join('<pre><code class="hljs">' + highlighted + '</code></pre>');
+        var blk = codeBlocks[j];
+        var highlighted = blk.esc;
+        if (blk.asCode && typeof hljs !== 'undefined') {
+          try {
+            if (blk.lang && hljs.getLanguage(blk.lang)) {
+              highlighted = hljs.highlight(blk.raw, { language: blk.lang, ignoreIllegals: true }).value;
+            } else {
+              highlighted = hljs.highlightAuto(blk.raw).value;
+            }
+          } catch(e) { highlighted = blk.esc; }
+        }
+        var preOpen = blk.asCode ? '<pre>' : '<pre class="block-text">';
+        html = html.split('%%CB_' + j + '%%').join(preOpen + '<code class="hljs">' + highlighted + '</code></pre>');
       }
 
       // 给所有图片添加懒加载（在插入 DOM 前）
