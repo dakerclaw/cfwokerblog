@@ -1,5 +1,6 @@
 # WorkBuddy 本地记忆（非博客代码，不入库）
 .workbuddy/
+memory/
 
 # 依赖
 node_modules/

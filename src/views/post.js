@@ -1,90 +1,25 @@
-// ==================== 文章详情页（SEO 优化）====================
+// ==================== 文章详情页 ====================
+// 与旧版的关键区别：
+//  1. 侧边栏（分类 / 友链 / 标签云 / 统计）改为服务端渲染，不再额外发 3~4 个请求。
+//  2. 正文与自定义脚本用 jsonScript 序列化，彻底避免 </script> 截断导致的注入。
+//  3. 分享缩略图、结构化数据补全，正文图片排除图标（点击图标不再弹出灯箱）。
+//  4. 代码块 / 中文围栏块的解析逻辑保持原样（这段是针对本站研报内容专门调过的）。
 
-import { escapeHtml, stripMarkdown } from '../lib/utils.js';
-import { getThemeStyle } from '../lib/themes.js';
+import { jsonScript, escapeHtml, absoluteUrl } from '../lib/utils.js';
+import {
+  FONT_LINKS, CLIENT_UTILS, sidebarHTML, headerHTML, footerHTML,
+  styleBlocks, customJsBlock, tagCloudBoxHTML
+} from '../lib/layout.js';
 
-export function getPostHTML(post, settings, requestUrl) {
-  settings = settings || {};
-  const siteName = settings.site_name || '我的博客';
-  const siteDesc = settings.site_description || '';
-  const siteAuthor = settings.site_author || siteName;
-  const postExcerpt = post.excerpt || stripMarkdown(post.content, 160);
-
-  // 绝对地址：微信 og:url / og:image 必须是完整 http(s) 网址
-  let origin = '';
-  if (requestUrl) { try { origin = new URL(requestUrl).origin; } catch (e) { origin = ''; } }
-  const postPath = '/post/' + new Date(post.created_at).getFullYear() +
-    String(new Date(post.created_at).getMonth() + 1).padStart(2, '0') + '/' + post.id;
-  const postUrl = origin ? origin + postPath : postPath;
-  // 已删除封面设置，所有分享统一使用站点默认分享图（正方形，微信缩略图兼容性更好）
-  const ogImage = origin ? origin + '/og-default.png' : '';
-
-  return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(post.title)} - ${escapeHtml(siteName)}</title>
-  <meta name="description" content="${escapeHtml(postExcerpt)}">
-  <meta name="author" content="${escapeHtml(siteAuthor)}">
-  <meta name="robots" content="index, follow">
-  <link rel="icon" href="/icon/favicon.ico">
-  <!-- Open Graph -->
-  <meta property="og:type" content="article">
-  <link rel="canonical" href="${escapeHtml(postUrl)}">
-  <meta property="og:url" content="${escapeHtml(postUrl)}">
-  <meta property="og:title" content="${escapeHtml(post.title)}">
-  <meta property="og:description" content="${escapeHtml(postExcerpt)}">
-  <meta property="og:site_name" content="${escapeHtml(siteName)}">
-  ${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">
-  <meta property="og:image:width" content="600">
-  <meta property="og:image:height" content="600">` : ''}
-  <meta property="article:published_time" content="${post.published_at || post.created_at}">
-  <meta property="article:modified_time" content="${post.updated_at}">
-  ${post.category ? `<meta property="article:section" content="${escapeHtml(post.category)}">` : ''}
-  ${post.tags ? post.tags.split(',').map(t => `<meta property="article:tag" content="${escapeHtml(t.trim())}">`).join('\n  ') : ''}
-  <script type="application/ld+json">${JSON.stringify({
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    "headline": post.title,
-    "description": postExcerpt,
-    "datePublished": post.published_at || post.created_at,
-    "dateModified": post.updated_at,
-    "author": { "@type": "Person", "name": settings.site_author || siteName },
-    "mainEntityOfPage": { "@type": "WebPage" }
-  })}</script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
-  <style>${getThemeStyle(settings.site_theme)}</style>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Nunito, 'Noto Sans SC', sans-serif; background: var(--body-bg, #f8f8f0); color: var(--text-body, #725d42); }
-    header { background: var(--header-bg, linear-gradient(135deg, #7DC395 0%, #5BAF7A 100%)); color: #fff; padding: 40px 20px; text-align: center; position: relative; overflow: hidden; }
-    header::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 40px; background: linear-gradient(transparent, rgba(0,0,0,0.05)); }
-    header h1 { font-size: 2.5em; font-weight: 800; margin-bottom: 8px; }
-    header a { color: #fff; text-decoration: none; }
-    header p { opacity: 0.9; font-size: 1.1em; font-weight: 500; }
-    main { max-width: 1124px; margin: 30px auto; padding: 0 20px; display: flex; gap: 24px; align-items: flex-start; }
-    .sidebar { width: 280px; flex-shrink: 0; }
+const PAGE_CSS = `
     .content-area { flex: 1; min-width: 0; }
-    .profile-card { background: var(--card-bg, #f7f3df); border-radius: 20px; padding: 24px; box-shadow: 0 4px 10px rgba(107, 92, 67, 0.42); border: 2px solid var(--card-border, #e8e0cc); }
-    .profile-card .avatar { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; margin: 0 auto 14px; display: block; border: 3px solid var(--input-border, #c4b89e); background: var(--card-border, #e8e0cc); }
-    .profile-card a.avatar-link { display: block; width: fit-content; margin: 0 auto 14px; text-decoration: none; outline: none; }
-    .profile-card a.avatar-link .avatar { margin: 0; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; }
-    .profile-card a.avatar-link:hover .avatar { transform: scale(1.06); box-shadow: 0 4px 12px rgba(107, 92, 67, 0.4); }
-    .profile-card .name { font-size: 1.1em; font-weight: 700; text-align: center; margin-bottom: 4px; color: var(--text-primary, #794f27); }
-    .profile-card .bio { color: var(--text-body, #725d42); font-size: 0.85em; text-align: center; margin-bottom: 14px; }
-    .profile-card .stats { display: flex; justify-content: center; gap: 16px; padding-bottom: 14px; }
-    .profile-card .stat-item { text-align: center; }
-    .profile-card .stat-num { font-size: 1.1em; font-weight: 800; color: var(--btn-bg, #19c8b9); }
-    .profile-card .stat-label { font-size: 0.75em; color: var(--text-secondary, #9f927d); font-weight: 600; }
-    .profile-card h4 { font-size: 0.85em; color: var(--text-secondary, #9f927d); margin: 14px 0 8px; font-weight: 700; }
-    .profile-card .category-list a, .profile-card .link-list a { display: block; padding: 8px 12px; margin: 0 0 6px 0; color: var(--text-body, #725d42); text-decoration: none; background: var(--card-bg, #f0e8d8); border-radius: 12px; font-size: 0.85em; font-weight: 600; transition: all 0.2s; border: 2px solid transparent; }
-    .profile-card .category-list a:hover, .profile-card .link-list a:hover { background: var(--card-bg, #e6f9f6); border-color: var(--btn-bg, #19c8b9); color: var(--btn-shadow, #11a89b); }
     .post-article { background: var(--card-bg, #f7f3df); padding: 36px; border-radius: 20px; box-shadow: 0 4px 10px rgba(107, 92, 67, 0.42); border: 2px solid var(--card-border, #e8e0cc); }
     .post-article h1 { font-size: 1.8em; margin-bottom: 16px; color: var(--text-primary, #794f27); font-weight: 800; }
+    .post-article h2 { font-size: 1.35em; margin: 1.2em 0 0.6em; color: var(--text-primary, #794f27); }
+    .post-article h3 { font-size: 1.15em; margin: 1em 0 0.5em; color: var(--text-primary, #794f27); }
     .post-article p { margin: 0.8em 0; line-height: 1.8; }
+    .post-article ul, .post-article ol { margin: 0.8em 0 0.8em 1.4em; line-height: 1.8; }
+    .post-article a { color: var(--btn-shadow, #11a89b); }
     .post-article img { max-width: 100%; height: auto; margin: 1em 0; border-radius: 12px; cursor: zoom-in; }
     .post-article img:hover { transform: scale(1.02); transition: transform 0.2s; }
     .post-article .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 1em 0; }
@@ -98,7 +33,6 @@ export function getPostHTML(post, settings, requestUrl) {
     .post-meta span { margin-right: 16px; }
     .back-link { display: inline-block; margin-bottom: 20px; padding: 10px 24px; background: var(--btn-bg, #19c8b9); color: #fff; text-decoration: none; border-radius: 50px; font-weight: 600; font-size: 0.9em; box-shadow: 0 4px 0 0 var(--btn-shadow, #11a89b); transition: all 0.25s; }
     .back-link:hover { transform: translateY(-1px); box-shadow: 0 5px 0 0 var(--btn-shadow, #11a89b); }
-    footer { text-align: center; padding: 30px 20px; color: var(--text-secondary, #9f927d); font-size: 0.85em; }
     .lightbox { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.92); z-index: 2000; display: none; align-items: center; justify-content: center; cursor: zoom-out; }
     .lightbox.active { display: flex; }
     .lightbox img { max-width: 85%; max-height: 85%; border-radius: 12px; border: 4px solid rgba(255,255,255,0.3); box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.1); cursor: default; transition: opacity 0.2s; }
@@ -109,270 +43,12 @@ export function getPostHTML(post, settings, requestUrl) {
     .lightbox-nav:hover { background: rgba(255,255,255,0.3); border-color: rgba(255,255,255,0.5); }
     .lightbox-nav:active { transform: scale(0.9); }
     .lightbox-counter { color: rgba(255,255,255,0.8); font-size: 14px; font-weight: 600; white-space: nowrap; min-width: 50px; text-align: center; }
-    .back-to-top { position: fixed; bottom: 30px; right: 30px; width: 44px; height: 44px; background: var(--btn-bg, #19c8b9); color: #fff; border: none; border-radius: 50%; font-size: 20px; cursor: pointer; box-shadow: 0 4px 0 0 var(--btn-shadow, #11a89b); display: flex; align-items: center; justify-content: center; z-index: 998; opacity: 0; pointer-events: none; transition: all 0.25s; }
-    .back-to-top.show { opacity: 1; pointer-events: auto; }
-    .tag-item:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      filter: brightness(0.95);
-    }
-    .mobile-nav-toggle { display: none; position: fixed; top: 12px; left: 12px; z-index: 1004; width: 40px; height: 40px; background: var(--btn-bg, #19c8b9); border: none; border-radius: 12px; color: #fff; font-size: 20px; cursor: pointer; box-shadow: 0 3px 0 var(--btn-shadow, #11a89b); transition: left 0.3s; }
-    .mobile-nav-toggle.nav-open { left: 208px !important; }
-    .mobile-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; }
-    .mobile-overlay.show { display: block; }
     @media (max-width: 768px) {
-      header { padding: 16px; }
-      header h1 { font-size: 1.4em; }
-      header p { font-size: 0.85em; }
-      .mobile-nav-toggle { display: flex; align-items: center; justify-content: center; }
-      .mobile-overlay.show { display: block; }
-      main { flex-direction: row; padding: 0 12px; gap: 0; margin-top: 12px; position: relative; }
-      .sidebar { width: 260px; position: fixed; top: 0; left: -260px; height: 100vh; z-index: 1002; transition: left 0.3s ease; overflow-y: auto; background: var(--body-bg, #f8f8f0); padding: 16px; box-shadow: 2px 0 8px rgba(0,0,0,0.1); }
-      .sidebar.open { left: 0; }
-      .profile-card { border-radius: 16px; padding: 16px; }
-      .profile-card .avatar { width: 56px; height: 56px; }
-      .profile-card .name { font-size: 1em; }
       .post-article { padding: 20px; border-radius: 16px; }
       .post-article h1 { font-size: 1.3em; }
-      footer { padding: 20px 16px; font-size: 0.8em; }
-    }
-  </style>
-  <link rel="stylesheet" href="/vendor/atom-one-dark.min.css">
-</head>
-<body>
-  <button class="mobile-nav-toggle" onclick="toggleNav()">☰</button>
-  <div class="mobile-overlay" id="mobileOverlay" onclick="toggleNav()"></div>
-  <header>
-    <h1><a href="/">${escapeHtml(siteName)}</a></h1>
-    ${siteDesc ? `<p>${escapeHtml(siteDesc)}</p>` : ''}
-  </header>
-  <main>
-    <aside class="sidebar" ${settings.profile_position === 'right' ? 'style="order:2"' : ''}>
-      <div class="profile-card">
-        <a href="/admin/" class="avatar-link" title="进入后台" aria-label="进入后台"><img class="avatar" src="/icon/profile.png" alt="${escapeHtml(siteAuthor)}"></a>
-        <div class="name">${escapeHtml(siteAuthor)}</div>
-        ${settings.site_bio ? `<div class="bio">${escapeHtml(settings.site_bio)}</div>` : ''}
-        <div class="stats">
-          <div class="stat-item"><div id="stat-posts" class="stat-num">-</div><div class="stat-label">文章</div></div>
-          <div class="stat-item"><div id="stat-cats" class="stat-num">-</div><div class="stat-label">分类</div></div>
-          <div class="stat-item"><div id="stat-tags" class="stat-num">-</div><div class="stat-label">标签</div></div>
-        </div>
-        <div style="font-size:0.78em;color:var(--text-secondary, #9f927d);text-align:center;padding-bottom:14px;border-bottom:2px solid var(--card-border, #e8e0cc);margin-bottom:14px">
-          建站时间：${(function(d){return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'})(new Date(settings.site_created_at || '2020-02-02'))}
-        </div>
-        <h4><img src="/icon/category.png" style="width:22px;height:22px;vertical-align:middle;margin-right:6px">分类</h4>
-        <div id="category-list" class="category-list"></div>
-        <h4><img src="/icon/friend-links.png" style="width:22px;height:22px;vertical-align:middle;margin-right:6px">${escapeHtml(settings.links_title || '友链')}</h4>
-        <div id="link-list" class="link-list"></div>
-      </div>
-      ${settings.enable_tag_cloud !== '0' && settings.tag_cloud_position === 'left' ? `
-      <div class="profile-card" style="margin-top:16px">
-        <div id="tag-cloud" class="tag-cloud" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 0"></div>
-      </div>
-      ` : ''}
-    </aside>
-    <div class="content-area" ${settings.profile_position === 'right' ? 'style="order:1"' : ''}>
-      ${settings.enable_tag_cloud !== '0' && settings.tag_cloud_position === 'right' ? `
-      <div style="margin-bottom:16px;padding:16px;background:var(--card-bg, #f7f3df);border-radius:20px;border:2px solid var(--card-border, #e8e0cc)">
-        <div id="tag-cloud" class="tag-cloud" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-      </div>
-      ` : ''}
-      <a class="back-link" href="/">← 返回首页</a>
-      <article class="post-article" style="position:relative">
-        ${settings.pinned_post_id && String(post.id) === String(settings.pinned_post_id) ? '<img src="/icon/pin-post.png" class="icon-img" style="position:absolute;top:24px;right:24px;width:36px;height:36px">' : ''}
-        <h1>${escapeHtml(post.title)}</h1>
-        <div class="post-meta">
-          <span><img src="/icon/category.png" class="icon-img" style="width:18px;height:18px;vertical-align:middle;margin-right:6px">${escapeHtml(post.category)}</span>
-          <span>${(function(d){return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'})(new Date(post.published_at || post.created_at))}</span>
-        </div>
-        <div id="post-content" style="line-height:1.8"></div>
-        ${post.tags ? `<div style="margin-top:24px;padding-top:16px;border-top:2px solid var(--card-border, #e8e0cc);display:flex;flex-wrap:wrap;gap:8px">${post.tags.split(',').map(t =>
-          `<span style="display:inline-block;padding:5px 14px;background:var(--card-bg, #e6f9f6);color:var(--btn-shadow, #11a89b);font-size:0.85em;font-weight:700;border:1.5px solid var(--btn-bg, #19c8b9);border-radius:50px">${escapeHtml(t.trim())}</span>`
-        ).join('')}</div>` : ''}
-      </article>
-    </div>
-  </main>
-  <div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
-    <button class="lightbox-close" onclick="closeLightbox(event)">×</button>
-    <img id="lightbox-img" src="" alt="">
-    <div class="lightbox-bottom">
-      <button class="lightbox-nav" onclick="event.stopPropagation();navLightbox(-1)">‹</button>
-      <div class="lightbox-counter" id="lightbox-counter"></div>
-      <button class="lightbox-nav" onclick="event.stopPropagation();navLightbox(1)">›</button>
-    </div>
-  </div>
-  <button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
-  <footer>${settings.site_footer ? escapeHtml(settings.site_footer) : '&copy; 2026 ' + escapeHtml(siteName)}</footer>
-  <script>
-    // 浏览器端内联工具函数（与 src/lib/utils.js 保持一致，避免 ReferenceError）
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-    }
-    function stripMarkdown(str, maxLen) {
-      if (!str) return '';
-      var text = String(str);
-      text = text.replace(/\`\`\`[\\s\\S]*?\`\`\`/g, ' ').replace(/~~~[\\s\\S]*?~~~/g, ' ');
-      text = text.replace(/\`([^\`\\n]+)\`/g, '$1');
-      text = text.replace(/!\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1');
-      text = text.replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1');
-      text = text.replace(/<(https?:\\/\\/[^>]+)>/g, '$1');
-      text = text.replace(/^#{1,6}\\s+/gm, '').replace(/^>\\s?/gm, '').replace(/^[-*+]\\s+/gm, '');
-      text = text.replace(/(\\*\\*|__)(.*?)\\1/g, '$2');
-      text = text.replace(/(\\*)(.*?)\\1/g, '$2');
-      text = text.replace(/~~(.*?)~~/g, '$1');
-      text = text.replace(/<[^>]+>/g, ' ');
-      text = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
-      text = text.replace(/\\s+/g, ' ').trim();
-      maxLen = maxLen || 120;
-      if (text.length > maxLen) { text = text.substring(0, maxLen).trim() + '...'; }
-      return text;
-    }
-    fetch('/api/stats').then(function(r){return r.json()}).then(function(s){
-      document.getElementById('stat-posts').textContent = s.postCount;
-      document.getElementById('stat-cats').textContent = s.catCount;
-      document.getElementById('stat-tags').textContent = s.tagCount || 0;
-      if (s.latestDate) { var d = new Date(s.latestDate); document.getElementById('site-updated').textContent = d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'; }
-    });
-    fetch('/api/categories').then(function(r){return r.json()}).then(function(cats){
-      var list = document.getElementById('category-list');
-      if(cats && cats.length > 0) list.innerHTML = '<a href="/">全部</a>' + cats.map(function(c){return '<a href="/?category='+encodeURIComponent(c.slug)+'">'+c.name+'</a>'}).join('');
-    });
-    fetch('/api/links').then(function(r){return r.json()}).then(function(links){
-      var list = document.getElementById('link-list');
-      if(links && links.length > 0) list.innerHTML = links.map(function(l){return '<a href="'+l.url+'" target="_blank" rel="noopener">'+escapeHtml(l.name)+'</a>'}).join('');
-    });
+    }`;
 
-    // 加载标签云
-    var tagCloudEl = document.getElementById('tag-cloud');
-    if (tagCloudEl) {
-      fetch('/api/posts?limit=999').then(function(r){return r.json()}).then(function(res) {
-        var posts = res.data || [];
-        var tagMap = {};
-        posts.forEach(function(post) {
-          if (post.password) return; // 跳过有密码的文章
-          if (post.tags) {
-            post.tags.split(',').forEach(function(t) {
-              var tag = t.trim();
-              if (tag) {
-                tagMap[tag] = (tagMap[tag] || 0) + 1;
-              }
-            });
-          }
-        });
-        var tags = Object.keys(tagMap).slice(0, 18); // 最多18个标签
-        if (tags.length > 0) {
-          var colors = [
-            { bg: '#f8a6b2', color: '#fff', border: '#f8a6b2' },  // app-pink
-            { bg: '#b77dee', color: '#fff', border: '#b77dee' },  // purple
-            { bg: '#889df0', color: '#fff', border: '#889df0' },  // app-blue
-            { bg: 'rgb(247,243,223)', color: 'var(--text-body, #725d42)', border: '#e8dcc8' },  // default
-            { bg: '#e59266', color: '#fff', border: '#e59266' },  // app-orange
-            { bg: '#82d5bb', color: '#fff', border: '#82d5bb' },  // app-teal
-            { bg: '#8ac68a', color: '#fff', border: '#8ac68a' },  // app-green
-            { bg: '#fc736d', color: '#fff', border: '#fc736d' },  // app-red
-            { bg: '#e18c6f', color: '#fff', border: '#e18c6f' }   // warm-peach-pink
-          ];
-          // 颜色分配：最多2个标签同色
-          var colorCount = {};
-          var shuffled = colors.slice().sort(function(){return 0.5 - Math.random()});
-          var colorIndex = 0;
-          tagCloudEl.innerHTML = tags.map(function(tag) {
-            // 找一个使用次数<2的颜色
-            while (colorIndex < shuffled.length * 2) {
-              var c = shuffled[colorIndex % shuffled.length];
-              var key = c.bg;
-              if (!colorCount[key]) colorCount[key] = 0;
-              if (colorCount[key] < 2) {
-                colorCount[key]++;
-                colorIndex++;
-                return '<a href="/?tag=' + encodeURIComponent(tag) + '" class="tag-item" style="display:inline-block;padding:5px 14px;background:' + c.bg + ';color:' + c.color + ';border:1.5px solid ' + c.border + ';border-radius:50px;text-decoration:none;white-space:nowrap;font-size:13px;font-weight:600;transition:all 0.25s ease;cursor:pointer">' + tag + '</a>';
-              }
-              colorIndex++;
-            }
-            // fallback
-            var c = shuffled[0];
-            return '<a href="/?tag=' + encodeURIComponent(tag) + '" class="tag-item" style="display:inline-block;padding:5px 14px;background:' + c.bg + ';color:' + c.color + ';border:1.5px solid ' + c.border + ';border-radius:50px;text-decoration:none;white-space:nowrap;font-size:13px;font-weight:600;transition:all 0.25s ease;cursor:pointer">' + tag + '</a>';
-          }).join('');
-        } else {
-          tagCloudEl.innerHTML = '<span style="color:var(--text-secondary, #9f927d);font-size:0.85em">暂无标签</span>';
-        }
-      });
-    }
-
-    window.addEventListener('scroll', function() {
-      var btn = document.querySelector('.back-to-top');
-      if (btn) btn.classList.toggle('show', window.scrollY > 300);
-    });
-
-    function toggleNav() {
-      document.querySelector('.sidebar').classList.toggle('open');
-      document.getElementById('mobileOverlay').classList.toggle('show');
-      document.querySelector('.mobile-nav-toggle').classList.toggle('nav-open');
-    }
-
-    var lightboxImages = [];
-    var lightboxIndex = 0;
-
-    function initLightbox() {
-      lightboxImages = Array.from(document.querySelectorAll('.post-article img'));
-      lightboxImages.forEach(function(img, index) {
-        img.addEventListener('click', function() {
-          openLightbox(index);
-        });
-      });
-    }
-
-    function openLightbox(index) {
-      lightboxIndex = index;
-      updateLightbox();
-      document.getElementById('lightbox').classList.add('active');
-      document.body.style.overflow = 'hidden';
-    }
-
-    function updateLightbox() {
-      if (!lightboxImages[lightboxIndex]) return;
-      document.getElementById('lightbox-img').src = lightboxImages[lightboxIndex].src;
-      var counter = document.getElementById('lightbox-counter');
-      if (lightboxImages.length > 1) {
-        counter.textContent = (lightboxIndex + 1) + ' / ' + lightboxImages.length;
-        counter.style.display = 'block';
-      } else {
-        counter.style.display = 'none';
-      }
-    }
-
-    function navLightbox(dir) {
-      var newIndex = lightboxIndex + dir;
-      if (newIndex < 0) newIndex = lightboxImages.length - 1;
-      if (newIndex >= lightboxImages.length) newIndex = 0;
-      lightboxIndex = newIndex;
-      updateLightbox();
-    }
-
-    function closeLightbox(e) {
-      if (e.target.id === 'lightbox' || e.target.classList.contains('lightbox-close')) {
-        document.getElementById('lightbox').classList.remove('active');
-        document.body.style.overflow = '';
-      }
-    }
-
-    document.addEventListener('keydown', function(e) {
-      var lb = document.getElementById('lightbox');
-      if (!lb.classList.contains('active')) return;
-      if (e.key === 'Escape') { lb.classList.remove('active'); document.body.style.overflow = ''; }
-      else if (e.key === 'ArrowLeft') navLightbox(-1);
-      else if (e.key === 'ArrowRight') navLightbox(1);
-    });
-  </script>
-  <script src="/vendor/marked.min.js"></script>
-  <script src="/vendor/highlight.min.js"></script>
-  <style>
+const CODE_CSS = `
     pre { background: #2b2118; border-radius: 20px; padding: 20px 24px; overflow-x: auto; margin: 14px 0; border: 1px solid #3d3028; box-shadow: none; position: relative; }
     .copy-btn { position: absolute; top: 12px; right: 12px; padding: 4px 12px; background: rgba(232,213,188,0.1); border: 1px solid rgba(232,213,188,0.2); border-radius: 6px; color: rgba(232,213,188,0.6); font-size: 12px; cursor: pointer; transition: all 0.2s; z-index: 2; }
     .copy-btn:hover { background: rgba(232,213,188,0.2); color: #e8d5bc; }
@@ -400,6 +76,7 @@ export function getPostHTML(post, settings, requestUrl) {
     .hljs-strong { font-weight: bold; color: #f0a870; }
     .hljs-link { color: #a8d4a0; text-decoration: underline; }
     .hljs-addition { color: #a8d4a0; background: rgba(46,160,67,0.15); }
+    .hljs-deletion { color: #e06c75; background: rgba(224,108,117,0.15); }
     blockquote { position: relative; background: var(--card-bg, #f0ece2); border-left: 4px solid var(--input-border, #c4b89e); border-radius: 0 12px 12px 0; padding: 16px 20px 16px 48px; margin: 16px 0; color: var(--text-body, #6b5d45); font-style: italic; line-height: 1.8; }
     blockquote::before { content: '\\201C'; position: absolute; left: 14px; top: 8px; font-size: 48px; color: var(--input-border, #c4b89e); font-family: Georgia, serif; line-height: 1; font-style: normal; }
     blockquote p { margin: 0; }
@@ -409,12 +86,160 @@ export function getPostHTML(post, settings, requestUrl) {
     summary::before { content: '\\25B6'; font-size: 12px; transition: transform 0.2s; display: inline-block; }
     details[open] summary::before { transform: rotate(90deg); }
     summary::-webkit-details-marker { display: none; }
-    details > div, details > p { padding: 16px 20px; }
-    .hljs-deletion { color: #e06c75; background: rgba(224,108,117,0.15); }
-  </style>
+    details > div, details > p { padding: 16px 20px; }`;
+
+export function getPostHTML(post, settings, requestUrl, data) {
+  settings = settings || {};
+  data = data || {};
+  const siteName = settings.site_name || '我的博客';
+  const siteAuthor = settings.site_author || siteName;
+  const postExcerpt = post.excerpt || '';
+
+  let origin = '';
+  if (requestUrl) { try { origin = new URL(requestUrl).origin; } catch (e) { origin = ''; } }
+  const canonical = absoluteUrl(requestUrl || '/', origin || undefined);
+  const ogImage = origin ? origin + '/og-default.png' : '';
+  const tags = (post.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: post.title,
+    description: postExcerpt,
+    datePublished: post.published_at || post.created_at,
+    dateModified: post.updated_at,
+    author: { '@type': 'Person', name: siteAuthor },
+    publisher: { '@type': 'Organization', name: siteName },
+    mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
+    articleSection: post.category || '',
+    keywords: tags.join(','),
+    wordCount: (post.content || '').length,
+    image: ogImage || undefined
+  };
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(post.title)} - ${escapeHtml(siteName)}</title>
+  <meta name="description" content="${escapeHtml(postExcerpt)}">
+  <meta name="author" content="${escapeHtml(siteAuthor)}">
+  <meta name="robots" content="index, follow">
+  <link rel="icon" href="/icon/favicon.ico">
+  <link rel="canonical" href="${escapeHtml(canonical)}">
+  <!-- Open Graph -->
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="${escapeHtml(canonical)}">
+  <meta property="og:title" content="${escapeHtml(post.title)}">
+  <meta property="og:description" content="${escapeHtml(postExcerpt)}">
+  <meta property="og:site_name" content="${escapeHtml(siteName)}">
+  ${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">
+  <meta property="og:image:width" content="600">
+  <meta property="og:image:height" content="600">` : ''}
+  <meta name="twitter:card" content="summary_large_image">
+  <meta property="article:published_time" content="${post.published_at || post.created_at}">
+  <meta property="article:modified_time" content="${post.updated_at}">
+  ${post.category ? `<meta property="article:section" content="${escapeHtml(post.category)}">` : ''}
+  ${tags.map(t => `<meta property="article:tag" content="${escapeHtml(t)}">`).join('\n  ')}
+  <script type="application/ld+json">${jsonScript(structuredData)}</script>
+${FONT_LINKS}
+${styleBlocks(settings, PAGE_CSS + CODE_CSS)}
+  <link rel="stylesheet" href="/vendor/atom-one-dark.min.css">
+</head>
+<body>
+  <button class="mobile-nav-toggle" aria-label="打开导航">☰</button>
+  <div class="mobile-overlay" id="mobileOverlay"></div>
+${headerHTML(settings)}
+  <main>
+${sidebarHTML(settings, data)}
+    <div class="content-area"${settings.profile_position === 'right' ? ' style="order:1"' : ''}>
+${tagCloudBoxHTML(settings, data.tags)}
+      <a class="back-link" href="/">← 返回首页</a>
+      <article class="post-article" style="position:relative">
+        ${settings.pinned_post_id && String(post.id) === String(settings.pinned_post_id) ? '<img src="/icon/pin-post.png" class="icon-img" alt="置顶" width="36" height="36" style="position:absolute;top:24px;right:24px;width:36px;height:36px">' : ''}
+        <h1>${escapeHtml(post.title)}</h1>
+        <div class="post-meta">
+          <span><img src="/icon/category.png" class="icon-img" alt="" width="18" height="18" style="width:18px;height:18px;vertical-align:middle;margin-right:6px">${escapeHtml(post.category)}</span>
+          <span>${(function (d) { return isNaN(d.getTime()) ? '' : d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日'; })(new Date(post.published_at || post.created_at))}</span>
+        </div>
+        <div id="post-content" style="line-height:1.8"></div>
+        ${tags.length ? `<div style="margin-top:24px;padding-top:16px;border-top:2px solid var(--card-border, #e8e0cc);display:flex;flex-wrap:wrap;gap:8px">${tags.map(t =>
+          `<a href="/?tag=${encodeURIComponent(t)}" style="display:inline-block;padding:5px 14px;background:var(--card-bg, #e6f9f6);color:var(--btn-shadow, #11a89b);font-size:0.85em;font-weight:700;border:1.5px solid var(--btn-bg, #19c8b9);border-radius:50px;text-decoration:none">${escapeHtml(t)}</a>`
+        ).join('')}</div>` : ''}
+      </article>
+    </div>
+  </main>
+  <div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+    <button class="lightbox-close" onclick="closeLightbox(event)" aria-label="关闭">×</button>
+    <img id="lightbox-img" src="" alt="">
+    <div class="lightbox-bottom">
+      <button class="lightbox-nav" onclick="event.stopPropagation();navLightbox(-1)" aria-label="上一张">‹</button>
+      <div class="lightbox-counter" id="lightbox-counter"></div>
+      <button class="lightbox-nav" onclick="event.stopPropagation();navLightbox(1)" aria-label="下一张">›</button>
+    </div>
+  </div>
+  <button class="back-to-top" aria-label="回到顶部">↑</button>
+${footerHTML(settings)}
+  <script>
+${CLIENT_UTILS}
+    var lightboxImages = [];
+    var lightboxIndex = 0;
+    (function(){
+      function initLightbox() {
+        // 排除图标类图片（置顶徽标、分类小图标），否则点图标也会弹出灯箱
+        lightboxImages = Array.prototype.slice.call(document.querySelectorAll('.post-article img'))
+          .filter(function (img) { return img.className.indexOf('icon-img') === -1; });
+        lightboxImages.forEach(function(img, index) {
+          img.addEventListener('click', function() { openLightbox(index); });
+        });
+      }
+      window.initLightbox = initLightbox;
+      window.openLightbox = function(index) {
+        lightboxIndex = index;
+        updateLightbox();
+        document.getElementById('lightbox').classList.add('active');
+        document.body.style.overflow = 'hidden';
+      };
+      window.updateLightbox = function() {
+        if (!lightboxImages[lightboxIndex]) return;
+        document.getElementById('lightbox-img').src = lightboxImages[lightboxIndex].src;
+        var counter = document.getElementById('lightbox-counter');
+        if (lightboxImages.length > 1) {
+          counter.textContent = (lightboxIndex + 1) + ' / ' + lightboxImages.length;
+          counter.style.display = 'block';
+        } else {
+          counter.style.display = 'none';
+        }
+      };
+      window.navLightbox = function(dir) {
+        var newIndex = lightboxIndex + dir;
+        if (newIndex < 0) newIndex = lightboxImages.length - 1;
+        if (newIndex >= lightboxImages.length) newIndex = 0;
+        lightboxIndex = newIndex;
+        window.updateLightbox();
+      };
+      window.closeLightbox = function(e) {
+        if (e.target.id === 'lightbox' || e.target.classList.contains('lightbox-close')) {
+          document.getElementById('lightbox').classList.remove('active');
+          document.body.style.overflow = '';
+        }
+      };
+      document.addEventListener('keydown', function(e) {
+        var lb = document.getElementById('lightbox');
+        if (!lb.classList.contains('active')) return;
+        if (e.key === 'Escape') { lb.classList.remove('active'); document.body.style.overflow = ''; }
+        else if (e.key === 'ArrowLeft') window.navLightbox(-1);
+        else if (e.key === 'ArrowRight') window.navLightbox(1);
+      });
+    })();
+    document.querySelector('.back-to-top').addEventListener('click', function(){ window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  </script>
+  <script src="/vendor/marked.min.js"></script>
+  <script src="/vendor/highlight.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      var raw = ${JSON.stringify((post.content || '').split('</script>').join('<\\/script>'))};
+      var raw = ${jsonScript(post.content || '')};
       var fence = String.fromCharCode(96)+String.fromCharCode(96)+String.fromCharCode(96);
       var tick = String.fromCharCode(96);
       var nl = String.fromCharCode(10);
@@ -428,13 +253,10 @@ export function getPostHTML(post, settings, requestUrl) {
       var inlineCodes = [];
       var content = raw;
       // 围栏块里装的不一定是代码。本站研报的围栏块几乎都是中文正文——
-      // 每周监测清单、破位决策树、股权结构图这类靠等宽字体对齐的模板，
-      // 实测 23 个块里 22 个中文字符占比在 0.27~0.51，真正的代码接近 0。
+      // 每周监测清单、破位决策树、股权结构图这类靠等宽字体对齐的模板。
       // 对中文正文跑 hljs.highlightAuto 会瞎猜一个语言，把数字、百分号、
       // 箭头随机染成五颜六色，所以这里先把它和代码区分开。
-      // 判定：写了语言标记就算代码；没写标记时看中文字符占比（阈值 0.15，
-      // 落在实测的 prose 0.27 / code 0 之间的空档里）。
-      // 用 charCodeAt 而不是正则，避免正则转义在模板字符串里被再解释一次。
+      // 判定：写了语言标记就算代码；没写标记时看中文字符占比（阈值 0.15）。
       function isPlainTextBlock(text) {
         var total = 0;
         var cjk = 0;
@@ -450,20 +272,14 @@ export function getPostHTML(post, settings, requestUrl) {
       // 先处理三反引号代码块
       while (true) {
         var fs = content.indexOf(nl + fence);
-        var lead = nl.length;                 // 命中「换行 + 围栏」时，围栏前还有一个换行符
-        if (fs === -1) { fs = content.indexOf(fence); lead = 0; }   // 围栏在文档最开头，无前置换行
+        var lead = nl.length;
+        if (fs === -1) { fs = content.indexOf(fence); lead = 0; }
         if (fs === -1) break;
-        // 注意：fs 指向的是「换行符」，围栏本身占 fs+lead .. fs+lead+2，
-        // 所以正文从 fs + lead + fence.length 开始。
-        // 旧代码写成 fs + fence.length，正好停在最后一个反引号上，
-        // 于是正文首字符变成了那个反引号 —— 之前它只被当作「语言标记」丢掉所以看不出问题，
-        // 现在要靠语言标记判断代码/正文，这个偏差会让每个块都被误判成代码。
         var bodyFrom = fs + lead + fence.length;
         var af = content.indexOf(fence, bodyFrom);
         if (af === -1) break;
         var cc = content.substring(bodyFrom, af);
         var fn = cc.indexOf(nl);
-        // 围栏后第一行是语言标记（如 js / python），要与正文分开
         var lang = '';
         if (fn !== -1) {
           lang = cc.substring(0, fn).trim();
@@ -479,7 +295,6 @@ export function getPostHTML(post, settings, requestUrl) {
         var si = content.indexOf(tick);
         if (si === -1) break;
         var ei = content.indexOf(tick, si + 1);
-        // 有闭合反引号取中间内容；没有闭合则取到内容结尾
         var sc = ei !== -1 ? content.substring(si + 1, ei) : content.substring(si + 1);
         var esc2 = sc.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
         var idx2 = inlineCodes.length;
@@ -503,12 +318,7 @@ export function getPostHTML(post, settings, requestUrl) {
         html = html.split('%%IC_' + m + '%%').join('<code class="inline-code">' + inlineCodes[m] + '</code>');
       }
 
-      // 第四步：还原围栏块
-      // 真代码 → 走 hljs 高亮、保持不折行（宽行横向滚动）；
-      // 中文正文 → 不高亮，加 block-text 类让长行自动折行，
-      //            否则一行中文撑出容器，右侧内容被截断、还要横向拖动才看得到。
-      // 注意：用 split/join 做字面替换，避免 String.replace 只换首个匹配、
-      //       以及内容里出现 $& / $' 时被当成替换模式而损坏。
+      // 第四步：还原围栏块（真代码高亮不折行；中文正文不高亮并允许折行）
       for (var j = 0; j < codeBlocks.length; j++) {
         var blk = codeBlocks[j];
         var highlighted = blk.esc;
@@ -539,6 +349,7 @@ export function getPostHTML(post, settings, requestUrl) {
           return function() {
             var code = pre.querySelector('code');
             var text = code ? code.textContent : pre.textContent;
+            if (!navigator.clipboard) return;
             navigator.clipboard.writeText(text).then(function() {
               button.textContent = '已复制';
               button.classList.add('copied');
@@ -549,9 +360,6 @@ export function getPostHTML(post, settings, requestUrl) {
         pres[p].appendChild(btn);
       }
 
-      initLightbox();
-      // 图片懒加载
-      document.querySelectorAll('.post-article img').forEach(function(img) { img.setAttribute('loading', 'lazy'); });
       // 表格包裹横向滚动容器（移动端防止溢出页面；幂等避免重复包裹）
       document.querySelectorAll('.post-article table').forEach(function(tbl) {
         var p = tbl.parentNode;
@@ -561,24 +369,11 @@ export function getPostHTML(post, settings, requestUrl) {
         tbl.parentNode.insertBefore(wrap, tbl);
         wrap.appendChild(tbl);
       });
+
+      window.initLightbox();
     });
   </script>
-  <script>
-  (function(){
-    var s = ${(JSON.stringify(settings.custom_js || ''))};
-    if(s && s.trim()){
-      var d=document.createElement('div');d.innerHTML=s;
-      var scripts=d.querySelectorAll('script');
-      scripts.forEach(function(old){
-        var n=document.createElement('script');
-        for(var i=0;i<old.attributes.length;i++)n.setAttribute(old.attributes[i].name,old.attributes[i].value);
-        if(old.textContent)n.textContent=old.textContent;
-        document.body.appendChild(n);
-      });
-      if(!scripts.length)document.body.appendChild(d);
-    }
-  })();
-  </script>
+${customJsBlock(settings, jsonScript)}
 </body>
 </html>`;
 }

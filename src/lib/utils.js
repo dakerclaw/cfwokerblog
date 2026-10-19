@@ -95,6 +95,34 @@ export function escapeHtml(str) {
 }
 
 /**
+ * 安全地把对象序列化进内联 <script>（防 </script> 截断与 HTML 注入）
+ * 直接把 JSON.stringify 的结果拼进 <script> 是 XSS 的经典入口：
+ * 正文/标题里只要出现 </script> 就能截断脚本并注入任意 HTML。
+ * 这里转义 < > & 及行分隔符，保证结果在任何上下文都是安全的 JS 字面量。
+ * @param {*} value 任意可序列化值
+ * @returns {string} 可直接嵌入 <script> 的 JS 源码
+ */
+export function jsonScript(value) {
+  return JSON.stringify(value === undefined ? null : value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+/**
+ * 生成绝对 URL（用于 canonical / sitemap / og:url）
+ */
+export function absoluteUrl(url, base) {
+  try {
+    return new URL(url, base).toString();
+  } catch {
+    return url;
+  }
+}
+
+/**
  * 规范化友链 / 外链地址：
  * - 缺协议（如 example.com、www.example.com、//example.com）自动补 https://，避免被浏览器当作相对路径而带上本站前缀。
  * - 拦截 javascript: / data: / vbscript: 等危险协议，统一回退为 '#' 防止 XSS。
@@ -112,6 +140,24 @@ export function normalizeLinkUrl(url) {
   if (/^(https?:\/\/|\/\/)/i.test(lower)) return raw;
   // 其余一律补 https://
   return 'https://' + raw;
+}
+
+/**
+ * 解析友链文本（每行 "名称,地址"）为对象数组
+ * @param {string} text site_links 原始文本
+ * @returns {Array<{name: string, url: string}>}
+ */
+export function parseLinks(text) {
+  if (!text) return [];
+  return String(text).split('\n').reduce((acc, line) => {
+    const idx = line.indexOf(',');
+    if (idx > 0) {
+      const name = line.substring(0, idx).trim();
+      const url = normalizeLinkUrl(line.substring(idx + 1));
+      if (name && url) acc.push({ name, url });
+    }
+    return acc;
+  }, []);
 }
 
 /**

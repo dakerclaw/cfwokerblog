@@ -1,6 +1,5 @@
 // ==================== 后台管理页面 ====================
 
-import { escapeHtml } from '../lib/utils.js';
 import { themes } from '../lib/themes.js';
 
 export function getAdminHTML() {
@@ -407,21 +406,28 @@ export function getAdminHTML() {
                   </div>
                 </div>
                 <div class="form-group"><label>文章标签</label><input v-model="form.tags" placeholder="多个标签用英文逗号隔开，如：JavaScript,Vue,React"></div>
+                <div class="form-group"><label>封面图链接（可选）</label><input v-model="form.cover_image" placeholder="https://...（微信/社交平台分享卡片使用）"><img v-if="form.cover_image" :src="form.cover_image" alt="封面预览" style="width:100%;margin-top:8px;border-radius:6px"></div>
                 <div class="form-group">
                   <label>文章密码</label>
-                  <div style="display:flex;align-items:center;gap:12px">
+                  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
                     <label class="radio-item" style="margin:0">
-                      <input type="radio" value="" v-model="form.passwordType">
+                      <input type="radio" value="keep" v-model="form.passwordAction">
                       <span class="radio-custom"></span>
-                      <span class="radio-label">无</span>
+                      <span class="radio-label">保持不变</span>
                     </label>
                     <label class="radio-item" style="margin:0">
-                      <input type="radio" value="has" v-model="form.passwordType">
+                      <input type="radio" value="set" v-model="form.passwordAction">
                       <span class="radio-custom"></span>
-                      <span class="radio-label">有</span>
+                      <span class="radio-label">设置新密码</span>
                     </label>
-                    <input v-if="form.passwordType === 'has'" v-model="form.password" type="password" placeholder="请输入密码" style="flex:1">
+                    <label class="radio-item" style="margin:0">
+                      <input type="radio" value="clear" v-model="form.passwordAction">
+                      <span class="radio-custom"></span>
+                      <span class="radio-label">取消密码</span>
+                    </label>
                   </div>
+                  <input v-if="form.passwordAction === 'set'" v-model="form.password" type="password" placeholder="请输入新密码（至少 4 位）" style="margin-top:8px">
+                  <div style="font-size:12px;color:#9f927d;margin-top:6px">{{ form.hasPassword ? '当前状态：已设置密码' : '当前状态：无密码' }}</div>
                 </div>
               </div>
             </div>
@@ -565,14 +571,35 @@ export function getAdminHTML() {
                   </div>
                 </div>
                 <div class="form-group"><label>网站页脚（HTML）</label><textarea v-model="settingsForm.site_footer" rows="3"></textarea></div>
-                <div class="form-group"><label>自定义JS</label><textarea v-model="settingsForm.custom_js" rows="4" placeholder="请输入完整的 <script>...</script> 标签，例如：&#10;<script src=&quot;https://cdn.jsdelivr.net/npm/xxx.js&quot;></script>"></textarea></div>
+                <div class="form-group"><label>自定义JS</label><textarea v-model="settingsForm.custom_js" rows="4" placeholder="请输入完整的 &lt;script&gt;...&lt;/script&gt; 标签，例如：&#10;&lt;script src=&quot;https://cdn.jsdelivr.net/npm/xxx.js&quot;&gt;&lt;/script&gt;（也可使用 /vendor/ 下的本地文件）"></textarea></div>
               </div>
             </div>
             <!-- 第二栏：安全与优化 -->
             <div style="flex:0 0 33.33%;max-width:33.33%;min-width:300px">
               <div class="card">
                 <h3 style="color:#794f27;font-size:18px;font-weight:700;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #e8e0cc">安全与优化</h3>
-                <div class="form-group"><label>全站密码（留空则不启用）</label><input v-model="settingsForm.site_password" type="password" placeholder="留空则公开访问"></div>
+                <div class="form-group">
+                  <label>全站密码</label>
+                  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                    <label class="radio-item" style="margin:0">
+                      <input type="radio" value="keep" v-model="settingsForm.sitePasswordAction">
+                      <span class="radio-custom"></span>
+                      <span class="radio-label">保持不变</span>
+                    </label>
+                    <label class="radio-item" style="margin:0">
+                      <input type="radio" value="set" v-model="settingsForm.sitePasswordAction">
+                      <span class="radio-custom"></span>
+                      <span class="radio-label">设置新密码</span>
+                    </label>
+                    <label class="radio-item" style="margin:0">
+                      <input type="radio" value="clear" v-model="settingsForm.sitePasswordAction">
+                      <span class="radio-custom"></span>
+                      <span class="radio-label">关闭密码保护</span>
+                    </label>
+                  </div>
+                  <input v-if="settingsForm.sitePasswordAction === 'set'" v-model="settingsForm.site_password" type="password" placeholder="请输入新的全站密码（至少 4 位）" style="margin-top:8px">
+                  <div style="font-size:12px;color:#9f927d;margin-top:6px">{{ settingsForm.hasSitePassword ? '当前状态：已开启全站密码保护' : '当前状态：公开访问' }}</div>
+                </div>
                 <div class="form-group"><label>CORS 允许来源（多域名用逗号分隔，* 表示全部）</label><input v-model="settingsForm.allowed_origins" placeholder="*"></div>
                 <div class="form-group">
                   <label>是否允许搜索引擎爬取</label>
@@ -724,6 +751,7 @@ export function getAdminHTML() {
           </div>
           <div v-if="importFileName" style="margin-bottom:16px;padding:12px;background:#f8f8f0;border-radius:12px;border:2px solid #e8e0cc">
             <p style="color:#725d42;font-size:14px">已选择: {{importFileName}}</p>
+            <p v-if="importCount > 0" style="color:#725d42;font-size:13px;margin-top:4px">解析到 {{importCount}} 篇文章（单次最多提交 100 篇）</p>
           </div>
           <div v-if="importResult" style="margin-bottom:16px;padding:12px;background:#f8f8f0;border-radius:12px;border:2px solid #e8e0cc">
             <p style="color:#725d42;font-size:14px;margin-bottom:8px">导入结果:</p>
@@ -731,7 +759,7 @@ export function getAdminHTML() {
             <p v-if="importResult.failed > 0" style="color:#e05a5a;font-size:14px">失败: {{importResult.failed}} 篇</p>
           </div>
           <div style="display:flex;gap:12px;justify-content:center">
-            <button class="btn btn-cancel" @click="showImportModal=false;importFileName='';importResult=null">关闭</button>
+            <button class="btn btn-cancel" @click="showImportModal=false;importFileName='';importResult=null;importFileData=null;importCount=0">关闭</button>
             <button class="btn" @click="importPosts" :disabled="!importFileName || importing">
               {{importing ? '导入中...' : '开始导入'}}
             </button>
@@ -741,7 +769,7 @@ export function getAdminHTML() {
       <div v-if="confirmModal.show" class="modal" @click.self="confirmModal.show=false">
         <div class="modal-box">
           <h3 style="color:#794f27;margin-bottom:12px">{{confirmModal.title}}</h3>
-          <p style="margin-bottom:16px" v-html="confirmModal.message"></p>
+          <p style="margin-bottom:16px;white-space:pre-line" >{{confirmModal.message}}</p>
           <div v-if="confirmModal.checkbox" style="margin-bottom:20px;display:flex;align-items:center;gap:8px;justify-content:center">
             <input type="checkbox" id="confirmCheckbox" v-model="confirmModal.checkboxValue" style="width:16px;height:16px;cursor:pointer">
             <label for="confirmCheckbox" style="cursor:pointer;color:#725d42;font-size:14px">{{confirmModal.checkboxLabel}}</label>
@@ -765,11 +793,11 @@ export function getAdminHTML() {
         const password = ref('');
         const posts = ref([]);
         const editingId = ref(null);
-        const form = ref({ title: '', content: '', category: '', tags: '', status: 'draft', password: '', passwordType: '', published_at: new Date().toISOString().split('T')[0] });
+        const form = ref({ title: '', content: '', category: '', tags: '', cover_image: '', status: 'draft', password: '', passwordAction: 'keep', hasPassword: false, published_at: new Date().toISOString().split('T')[0] });
         const toast = ref('');
         const categories = ref([]);
         const currentPage = ref('posts');
-        const settingsForm = ref({ site_name: '', site_description: '', site_bio: '', site_links: '', site_author: '', site_footer: '', custom_js: '', site_theme: 'animal-forest', enable_tag_cloud: '1', profile_position: 'left', tag_cloud_position: 'left', pinned_post_id: '', pinnedType: '' });
+        const settingsForm = ref({ site_name: '', site_description: '', site_bio: '', site_links: '', site_author: '', site_footer: '', custom_js: '', site_theme: 'animal-forest', enable_tag_cloud: '1', profile_position: 'left', tag_cloud_position: 'left', pinned_post_id: '', pinnedType: '', site_password: '', sitePasswordAction: 'keep', hasSitePassword: false });
         const categoryForm = ref({ name: '', slug: '', description: '' });
         const editingCategory = ref(null);
         const trashPosts = ref([]);
@@ -781,6 +809,7 @@ export function getAdminHTML() {
         const showImportModal = ref(false);
         const importFileName = ref('');
         const importFileData = ref(null);
+        const importCount = ref(0);
         const importing = ref(false);
         const importResult = ref(null);
         // 置顶相关状态
@@ -798,10 +827,10 @@ export function getAdminHTML() {
           });
         };
         const login = async () => { try { const r = await axios.post('/api/login', { username: username.value, password: password.value }); if (r.data.success) { localStorage.setItem('token', r.data.token); logged.value = true; loadPosts(); loadCategories(); loadSettings(); loadTrash(); } } catch (e) { alert(e.response ? e.response.data.error || '登录失败' : '登录失败'); } };
-        const logout = () => { localStorage.removeItem('token'); logged.value = false; };
+        const logout = async () => { try { await api('/api/logout', { method: 'POST' }); } catch (e) { /* 即使服务端注销失败，本地也照常退出 */ } localStorage.removeItem('token'); logged.value = false; };
         const loadPosts = async () => { try { const r = await api('/api/admin/posts'); posts.value = r.data; } catch (e) { showToast('加载文章失败'); } };
         const loadCategories = async () => { try { const r = await api('/api/categories?_=' + Date.now()); categories.value = r.data; } catch (e) { showToast('加载分类失败'); } };
-        const loadSettings = async () => { try { const r = await api('/api/settings'); const pinnedId = r.data.pinned_post_id || ''; settingsForm.value = { site_name: r.data.site_name || '', site_description: r.data.site_description || '', site_bio: r.data.site_bio || '', site_links: r.data.site_links || '', site_author: r.data.site_author || '', site_footer: r.data.site_footer || '', custom_js: r.data.custom_js || '', site_theme: r.data.site_theme || 'animal-forest', allow_robots: r.data.allow_robots || '1', enable_compression: r.data.enable_compression || '1', links_title: r.data.links_title || '友链', site_created_at: r.data.site_created_at || '2020-02-02', site_password: r.data.site_password || '', allowed_origins: r.data.allowed_origins || '*', enable_tag_cloud: r.data.enable_tag_cloud || '1', profile_position: r.data.profile_position || 'left', tag_cloud_position: r.data.tag_cloud_position || 'left', pinned_post_id: pinnedId, pinnedType: pinnedId ? 'has' : '' }; currentPinnedId.value = pinnedId; applyTheme(); } catch (e) { showToast('加载设置失败'); } };
+        const loadSettings = async () => { try { const r = await api('/api/admin/settings?_=' + Date.now()); const d = r.data || {}; const pinnedId = d.pinned_post_id || ''; settingsForm.value = { site_name: d.site_name || '', site_description: d.site_description || '', site_bio: d.site_bio || '', site_links: d.site_links || '', site_author: d.site_author || '', site_footer: d.site_footer || '', custom_js: d.custom_js || '', site_theme: d.site_theme || 'animal-forest', allow_robots: d.allow_robots || '1', enable_compression: d.enable_compression || '1', links_title: d.links_title || '友链', site_created_at: d.site_created_at || '2020-02-02', allowed_origins: d.allowed_origins || '*', enable_tag_cloud: d.enable_tag_cloud || '1', profile_position: d.profile_position || 'left', tag_cloud_position: d.tag_cloud_position || 'left', pinned_post_id: pinnedId, pinnedType: pinnedId ? 'has' : '', site_password: '', sitePasswordAction: 'keep', hasSitePassword: !!d.has_site_password }; currentPinnedId.value = pinnedId; applyTheme(); } catch (e) { showToast('加载设置失败'); } };
         const loadTrash = async () => { try { const r = await api('/api/admin/trash'); trashPosts.value = r.data; } catch (e) { showToast('加载回收站失败'); } };
         const showToast = (m) => { toast.value = m; setTimeout(() => toast.value = '', 2000); };
         const showConfirm = (t, m, options = {}) => new Promise(r => {
@@ -818,16 +847,16 @@ export function getAdminHTML() {
         });
         const postPage = ref(1);
         const postPageSize = 10;
-        const openAdd = () => { editingId.value = 'new'; form.value = { title: '', content: '', category: '', tags: '', status: 'draft', password: '', passwordType: '', published_at: new Date().toISOString().split('T')[0] }; };
+        const openAdd = () => { editingId.value = 'new'; form.value = { title: '', content: '', category: '', tags: '', cover_image: '', status: 'draft', password: '', passwordAction: 'keep', hasPassword: false, published_at: new Date().toISOString().split('T')[0] }; };
         const cancelNewPost = async () => { const { confirmed } = await showConfirm('确认取消', '未保存的内容将丢失'); if (confirmed) { editingId.value = null; } };
-        const toggleEdit = (p) => { if (editingId.value === p.id) { editingId.value = null; } else { editingId.value = p.id; form.value = { title: p.title, content: p.content, category: p.category, tags: p.tags, status: p.status, password: p.password || '', passwordType: p.password ? 'has' : '', published_at: p.published_at ? p.published_at.split('T')[0] : new Date().toISOString().split('T')[0] }; } };
-        const savePost = async () => { if (form.value.passwordType === 'has' && !form.value.password) { alert('请输入文章密码'); return; } const { confirmed } = await showConfirm('确认保存', '确定保存？'); if (!confirmed) return; try { const postData = { ...form.value }; if (postData.passwordType !== 'has') { postData.password = ''; } delete postData.passwordType; if (editingId.value === 'new') { await api('/api/admin/post', { method: 'POST', data: postData }); } else { await api('/api/admin/post?id=' + editingId.value, { method: 'PUT', data: postData }); } editingId.value = null; loadPosts(); showToast('保存成功'); } catch (e) { alert('保存失败'); } };
+        const toggleEdit = (p) => { if (editingId.value === p.id) { editingId.value = null; } else { editingId.value = p.id; form.value = { title: p.title, content: p.content, category: p.category, tags: p.tags, cover_image: p.cover_image || '', status: p.status, password: '', passwordAction: 'keep', hasPassword: !!p.has_password, published_at: p.published_at ? p.published_at.split('T')[0] : new Date().toISOString().split('T')[0] }; } };
+        const savePost = async () => { if (form.value.passwordAction === 'set' && !form.value.password) { alert('请输入新密码'); return; } const { confirmed } = await showConfirm('确认保存', '确定保存？'); if (!confirmed) return; try { const postData = { ...form.value }; postData.password_action = form.value.passwordAction; if (form.value.passwordAction !== 'set') { postData.password = ''; } delete postData.passwordAction; delete postData.hasPassword; if (editingId.value === 'new') { await api('/api/admin/post', { method: 'POST', data: postData }); } else { await api('/api/admin/post?id=' + editingId.value, { method: 'PUT', data: postData }); } editingId.value = null; loadPosts(); showToast('保存成功'); } catch (e) { alert('保存失败: ' + (e.response && e.response.data && e.response.data.error ? e.response.data.error : '请稍后重试')); } };
         const deletePost = async (id) => { const { confirmed } = await showConfirm('确认删除', '移到回收站？'); if (!confirmed) return; try { await api('/api/admin/post?id=' + id, { method: 'DELETE' }); loadPosts(); loadTrash(); showToast('已移到回收站'); } catch (e) { showToast('删除失败'); } };
         const batchDeletePosts = async () => { if (selectedPosts.value.length === 0) return; const { confirmed } = await showConfirm('批量删除', '将选中的 ' + selectedPosts.value.length + ' 篇文章移到回收站？'); if (!confirmed) return; try { await api('/api/admin/posts/batch-delete', { method: 'POST', data: { ids: selectedPosts.value } }); selectedPosts.value = []; loadPosts(); loadTrash(); showToast('已移到回收站'); } catch (e) { showToast('删除失败'); } };
         const editCategory = (c) => { editingCategory.value = c.id; categoryForm.value = { name: c.name, slug: c.slug, description: c.description || '' }; };
         const saveCategory = async () => { if (!categoryForm.value.name || !categoryForm.value.slug) { alert('请填写'); return; } const { confirmed } = await showConfirm('确认保存', '确定？'); if (!confirmed) return; try { const d = { ...categoryForm.value }; if (editingCategory.value && editingCategory.value !== 'new') d.id = editingCategory.value; await api('/api/category', { method: 'POST', data: d }); loadCategories(); editingCategory.value = null; categoryForm.value = { name: '', slug: '', description: '' }; showToast('保存成功'); } catch (e) { alert('保存失败'); } };
         const deleteCategory = async (id) => { const { confirmed } = await showConfirm('确认删除', '确定？'); if (!confirmed) return; try { await api('/api/category?id=' + id, { method: 'DELETE' }); loadCategories(); showToast('已删除'); } catch (e) { showToast('删除分类失败'); } };
-        const saveSettings = async () => { if (settingsForm.value.pinnedType === 'has' && !settingsForm.value.pinned_post_id) { alert('请输入置顶文章编号'); return; } try { const data = { ...settingsForm.value }; if (data.pinnedType !== 'has') { data.pinned_post_id = ''; } delete data.pinnedType; const r = await api('/api/settings', { method: 'POST', data: data }); if (r.data && r.data.success) { showToast('保存成功'); } else { alert('保存失败: ' + (r.data ? r.data.error : '未知错误')); } } catch (e) { console.error('保存设置错误:', e); alert('保存失败: ' + (e.response ? e.response.data.error || e.response.statusText : e.message)); } };
+        const saveSettings = async () => { if (settingsForm.value.pinnedType === 'has' && !settingsForm.value.pinned_post_id) { alert('请输入置顶文章编号'); return; } if (settingsForm.value.sitePasswordAction === 'set' && (!settingsForm.value.site_password || settingsForm.value.site_password.length < 4)) { alert('新的全站密码至少 4 位'); return; } try { const data = { ...settingsForm.value }; if (data.pinnedType !== 'has') { data.pinned_post_id = ''; } delete data.pinnedType; data.site_password_action = settingsForm.value.sitePasswordAction; data.site_password_value = settingsForm.value.site_password; delete data.sitePasswordAction; delete data.hasSitePassword; const r = await api('/api/settings', { method: 'POST', data: data }); if (r.data && r.data.success) { showToast('保存成功'); if (data.site_password_action === 'set') { settingsForm.value.hasSitePassword = true; } else if (data.site_password_action === 'clear') { settingsForm.value.hasSitePassword = false; } settingsForm.value.site_password = ''; settingsForm.value.sitePasswordAction = 'keep'; } else { alert('保存失败: ' + (r.data ? r.data.error : '未知错误')); } } catch (e) { console.error('保存设置错误:', e); alert('保存失败: ' + (e.response && e.response.data && e.response.data.error ? e.response.data.error : e.message)); } };
         const restorePost = async (id) => { const { confirmed } = await showConfirm('确认恢复', '将文章恢复为草稿？'); if (!confirmed) return; try { await api('/api/admin/restore', { method: 'POST', data: { id } }); loadPosts(); loadTrash(); showToast('已恢复'); } catch (e) { showToast('恢复失败'); } };
         const permanentDelete = async (id) => { const { confirmed } = await showConfirm('确认删除', '彻底删除？不可恢复！'); if (!confirmed) return; try { await api('/api/admin/permanent-delete', { method: 'POST', data: { id } }); loadTrash(); showToast('已删除'); } catch (e) { showToast('删除失败'); } };
         const emptyTrash = async () => { if (trashPosts.value.length === 0) return; const { confirmed, checkboxValue } = await showConfirm('清空回收站', '将彻底删除回收站中的全部 ' + trashPosts.value.length + ' 篇文章？此操作不可恢复！', { checkbox: true, checkboxLabel: '我已知晓此操作不可恢复' }); if (!confirmed || !checkboxValue) return; try { await api('/api/admin/trash/empty', { method: 'POST' }); selectedPosts.value = []; loadTrash(); loadPosts(); showToast('回收站已清空'); } catch (e) { showToast('清空失败'); } };
@@ -866,7 +895,7 @@ export function getAdminHTML() {
             if (currentPinnedId.value == postId) {
               const post = posts.value.find(p => p.id == postId);
               const postTitle = post ? post.title : '未知文章';
-              const { confirmed } = await showConfirm('取消置顶', '确定取消置顶文章？<br><br>文章编号：' + postId + '<br>文章标题：' + postTitle);
+              const { confirmed } = await showConfirm('取消置顶', '确定取消置顶文章？\\n\\n文章编号：' + postId + '\\n文章标题：' + postTitle);
               if (!confirmed) return;
               await api('/api/settings', { method: 'POST', data: { pinned_post_id: '' } });
               currentPinnedId.value = '';
@@ -881,7 +910,7 @@ export function getAdminHTML() {
               return;
             }
             
-            const { confirmed } = await showConfirm('置顶文章', '确定置顶文章？<br><br>文章编号：' + postId + '<br>文章标题：' + post.title);
+            const { confirmed } = await showConfirm('置顶文章', '确定置顶文章？\\n\\n文章编号：' + postId + '\\n文章标题：' + post.title);
             if (!confirmed) return;
             
             await api('/api/settings', { method: 'POST', data: { pinned_post_id: String(postId) } });
@@ -950,6 +979,42 @@ export function getAdminHTML() {
         };
 
         // 导入相关方法
+        // 注意：Workers 运行时不提供 DOMParser，所以 WordPress 导出的 XML
+        // 在浏览器端解析成结构化数据后再提交，服务端只负责入库。
+        const parseWpXml = (text) => {
+          const doc = new DOMParser().parseFromString(text, 'text/xml');
+          if (doc.getElementsByTagName('parsererror').length > 0) throw new Error('XML 格式错误');
+          const pick = (el, tag) => { const n = el.getElementsByTagName(tag)[0]; return n ? n.textContent : ''; };
+          const posts = [];
+          Array.prototype.slice.call(doc.getElementsByTagName('item')).forEach(item => {
+            const postType = pick(item, 'wp:post_type');
+            if (postType && postType !== 'post') return;
+            const title = (pick(item, 'title') || '').trim();
+            const content = pick(item, 'content:encoded') || pick(item, 'content');
+            if (!title || !content) return;
+            const categories = [];
+            const tags = [];
+            Array.prototype.slice.call(item.getElementsByTagName('category')).forEach(c => {
+              const name = (c.textContent || '').trim();
+              if (!name) return;
+              if (c.getAttribute('domain') === 'post_tag') tags.push(name);
+              else categories.push(name);
+            });
+            const status = pick(item, 'wp:status');
+            posts.push({
+              title: title,
+              content: content,
+              excerpt: pick(item, 'excerpt:encoded'),
+              slug: pick(item, 'wp:post_name'),
+              date: pick(item, 'wp:post_date'),
+              status: status === 'publish' ? 'published' : 'draft',
+              categories: categories,
+              tags: tags
+            });
+          });
+          return posts;
+        };
+
         const handleImportFile = async (e) => {
           const file = e.target.files[0];
           if (!file) return;
@@ -958,30 +1023,38 @@ export function getAdminHTML() {
             return;
           }
           importFileName.value = file.name;
-          importFileData.value = await file.text();
           importResult.value = null;
+          importFileData.value = null;
+          importCount.value = 0;
+          try {
+            const parsed = parseWpXml(await file.text());
+            importFileData.value = parsed;
+            importCount.value = parsed.length;
+            if (parsed.length === 0) alert('没有解析到文章（可能导出的是页面 / 附件）');
+          } catch (err) {
+            alert('解析失败: ' + (err.message || 'XML 格式错误'));
+          }
         };
 
         const importPosts = async () => {
-          if (!importFileData.value) {
+          if (!importFileData.value || importFileData.value.length === 0) {
             alert('请先选择文件');
             return;
           }
           importing.value = true;
           try {
+            const batch = importFileData.value.slice(0, 100);
             const r = await api('/api/admin/import-wordpress', {
               method: 'POST',
-              data: { xml: importFileData.value },
+              data: { posts: batch },
               headers: { 'Content-Type': 'application/json' }
             });
             importResult.value = r.data;
             loadPosts();
             loadCategories();
-            if (r.data.failed === 0) {
-              showToast('导入完成');
-            }
+            if (!r.data.failed) showToast('导入完成');
           } catch (e) {
-            alert('导入失败: ' + (e.response ? e.response.data.error : e.message));
+            alert('导入失败: ' + (e.response ? ((e.response.data && e.response.data.error) || e.response.statusText) : e.message));
           } finally {
             importing.value = false;
           }
@@ -989,7 +1062,7 @@ export function getAdminHTML() {
 
         watch(currentPage, (v) => { localStorage.setItem('adminPage', v); });
         onMounted(() => { check(); document.addEventListener('click', closeAllSelects); });
-        return { logged, username, password, login, logout, posts, editingId, form, toast, openAdd, cancelNewPost, toggleEdit, savePost, deletePost, categories, currentPage, postPage, postPageSize, categoryForm, saveCategory, deleteCategory, editCategory, editingCategory, settingsForm, saveSettings, trashPosts, restorePost, permanentDelete, confirmModal, showConfirm, insertMd, applyTheme, customSelects, toggleSelect, selectOption, getSelectLabel, showImportModal, importFileName, importFileData, importing, importResult, handleImportFile, importPosts, currentPinnedId, setPinnedPost, selectedPosts, isAllSelected, toggleSelectAll, batchDeletePosts, emptyTrash };
+        return { logged, username, password, login, logout, posts, editingId, form, toast, openAdd, cancelNewPost, toggleEdit, savePost, deletePost, categories, currentPage, postPage, postPageSize, categoryForm, saveCategory, deleteCategory, editCategory, editingCategory, settingsForm, saveSettings, trashPosts, restorePost, permanentDelete, confirmModal, showConfirm, insertMd, applyTheme, customSelects, toggleSelect, selectOption, getSelectLabel, showImportModal, importFileName, importFileData, importCount, importing, importResult, handleImportFile, importPosts, currentPinnedId, setPinnedPost, selectedPosts, isAllSelected, toggleSelectAll, batchDeletePosts, emptyTrash };
       }
     }).mount('#app');
   <\/script>

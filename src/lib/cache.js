@@ -1,67 +1,46 @@
 // ==================== 缓存模块（Workers Cache API）====================
+// 缓存键带上「内容版本号」：任何内容变更只需把版本号 +1，旧缓存立即不可达，
+// 无需逐个 URL 去删除（Cache API 不支持按前缀批量清理）。
+// 所有缓存操作都包在 try/catch 里：缓存故障绝不能影响页面正常输出。
 
-const DEFAULT_TTL = 300; // 5分钟默认缓存
+const DEFAULT_TTL = 300;
 
 /**
- * 获取缓存的响应
+ * 生成带版本的缓存键
  */
-export async function getCachedResponse(request) {
-  const cache = caches.default;
-  const cacheKey = new Request(request.url, { method: 'GET' });
-  return cache.match(cacheKey);
+export function versionedCacheKey(request, version) {
+  // 兼容传入 Request 或 URL 字符串，避免调用方写错类型直接抛错
+  const u = new URL(typeof request === 'string' ? request : request.url);
+  u.searchParams.set('__v', String(version || '1'));
+  return new Request(u.toString(), { method: 'GET' });
 }
 
 /**
- * 缓存响应
+ * 读取缓存
  */
-export async function cacheResponse(request, response, ttl = DEFAULT_TTL) {
-  const cache = caches.default;
-  const cacheKey = new Request(request.url, { method: 'GET' });
-  const cloned = response.clone();
-  cloned.headers.set('Cache-Control', `public, max-age=${ttl}`);
-  await cache.put(cacheKey, cloned);
-}
-
-/**
- * 清除指定 URL 的缓存
- */
-export async function purgeCache(url) {
-  const cache = caches.default;
-  await cache.delete(new Request(url));
-}
-
-/**
- * 清除所有页面缓存
- */
-export async function purgeAllCache(urls) {
-  const cache = caches.default;
-  for (const url of urls) {
-    await cache.delete(new Request(url));
+export async function getCached(request, version) {
+  try {
+    return await caches.default.match(versionedCacheKey(request, version));
+  } catch (e) {
+    return null;
   }
 }
 
 /**
- * 带缓存的响应包装器
+ * 写入缓存（TTL 由写入时指定的 max-age 决定）
  */
-export async function withCache(request, fetchFn, ttl = DEFAULT_TTL) {
-  // 只缓存 GET 请求
-  if (request.method !== 'GET') {
-    return fetchFn();
+export async function putCached(request, version, response, ttl = DEFAULT_TTL) {
+  try {
+    const cloned = response.clone();
+    cloned.headers.set('Cache-Control', `public, max-age=${ttl}`);
+    await caches.default.put(versionedCacheKey(request, version), cloned);
+  } catch (e) {
+    console.error('[Cache] 写入失败(可忽略):', e.message || 'Error');
   }
-
-  // 尝试从缓存获取
-  const cached = await getCachedResponse(request);
-  if (cached) {
-    return cached;
-  }
-
-  // 执行实际请求
-  const response = await fetchFn();
-
-  // 只缓存成功响应
-  if (response.ok) {
-    await cacheResponse(request, response, ttl);
-  }
-
-  return response;
 }
+
+/**
+ * 说明：这里**不再提供按 URL 删除缓存**的能力。
+ * 因为所有缓存键都带 `__v=<内容版本号>`，删一个无版本号的 URL 匹配不到任何条目；
+ * 内容变更时统一走 `bumpContentVersion()`，旧键立即不可达，比逐个删除更可靠。
+ */
