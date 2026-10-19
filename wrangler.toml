@@ -9,7 +9,14 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "./public"
 binding = "ASSETS"
-serve_directly = false
+# 静态资源优先：public/ 下确实存在的文件由 Cloudflare 边缘直接返回，不经过 Worker。
+# 原写法 serve_directly = false 是 wrangler v3 的字段，v4 已移除且被静默忽略
+# （部署时报 Unexpected fields found in assets field），所以线上实际行为一直就是这里的效果。
+# 不需要改成 Worker 优先的原因：handleAsset() 原样返回 env.ASSETS.fetch() 的结果，
+# 并不给静态资源附加任何安全头；而 /icon/、/vendor/ 等路径本就豁免全站密码门禁。
+# 若将来要让静态资源也过一遍 Worker（补安全头、复用 isStaticPath 逻辑），
+# 改为 run_worker_first = true 即可，代价是每个图标 / JS 请求都消耗一次 Worker 调用。
+run_worker_first = false
 
 # ============================================
 # D1 数据库绑定
