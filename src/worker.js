@@ -37,17 +37,40 @@ function isStaticPath(path) {
     || path.startsWith('/vendor/');
 }
 
+/** 本地开发主机：wrangler dev 是 http://localhost:8787，强制跳 https 会让本地直接打不开 */
+function isLocalDevHost(hostname) {
+  return hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || hostname === '::1'
+    || hostname === '[::1]'
+    || hostname.endsWith('.localhost');
+}
+
 export default {
   async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // ========== 0. 强制 HTTPS ==========
+    // 站点可从 80 端口明文访问（Cloudflare 侧未开启 Always Use HTTPS）。若不在此拦截，
+    // 有两个真实问题：① 访客可能在明文连接上提交全站密码 / 管理员密码；
+    // ② sitemap.xml、og:url 等按 request.url 生成的绝对地址会变成 http:// 交给爬虫
+    //    （实测 http 下的 sitemap 输出 <loc>http://blog.hehudieyiqi.com/</loc>）。
+    // 注意：**不能**靠响应头里的 Strict-Transport-Security 解决 —— 按 HSTS 规范，
+    // 浏览器会忽略通过 HTTP 明文下发的 HSTS，此前误以为它能缓解，实测无效。
+    // 这里只是兜底：更彻底的做法是在 Cloudflare Dashboard → SSL/TLS → Edge Certificates
+    // 开启 Always Use HTTPS，让跳转在边缘完成；届时本段不会再被触发，保留无害。
+    if (url.protocol !== 'https:' && !isLocalDevHost(url.hostname)) {
+      url.protocol = 'https:';
+      return Response.redirect(url.toString(), 301);
+    }
+
     try {
       await ensureDB(env);
     } catch (e) {
       // 初始化失败也要能给出明确响应，避免直接 1101
       console.error('[Worker] 数据库初始化失败:', e.message || 'Error');
     }
-
-    const url = new URL(request.url);
-    const path = url.pathname;
 
     // CORS 预检
     const settings = await getSettings(env);

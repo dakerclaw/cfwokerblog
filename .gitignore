@@ -1,7 +1,3 @@
-# WorkBuddy 本地记忆（非博客代码，不入库）
-# 注：memory/ 已于 2026-10-19 移到仓库外（..\memory\），故此处不再需要该规则。
-.workbuddy/
-
 # 依赖
 node_modules/
 
@@ -13,4 +9,3 @@ node_modules/
 # 系统 / 临时
 .DS_Store
 Thumbs.db
-_fix_profile.py
