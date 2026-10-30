@@ -102,7 +102,13 @@ export async function handleAPI(request, env, path) {
     // ========== 管理端登录（5 次 / 15 分钟）==========
     if (path === '/api/login' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      if (!env.ADMIN_PASSWORD) return jsonResp({ success: true, token: 'no-auth' });
+      // fail-closed：未配置 ADMIN_PASSWORD 时拒绝登录，绝不签发 no-auth 令牌。
+      // 旧行为是返回 { success: true, token: 'no-auth' } —— 配合 authenticateRequest 的
+      // 免认证分支，等于任何人打开后台就拥有全部管理权限。
+      if (!env.ADMIN_PASSWORD) {
+        console.error('[API] ADMIN_PASSWORD 未配置，管理功能已停用');
+        return jsonResp({ success: false, error: '服务端未配置管理员密码，管理功能已停用' }, 503);
+      }
 
       const rateKey = 'login:' + clientIP;
       const limit = await checkRateLimit(env, rateKey);

@@ -10,7 +10,10 @@ const COOKIE_TTL_MS = COOKIE_MAX_AGE * 1000;
 const AUTH_HKDF_SALT = 'cloudflare-light-blog-auth-v1';    // 令牌派生用的 HKDF salt
 const COOKIE_HKDF_SALT = 'cloudflare-light-blog-cookie-v1'; // Cookie 派生用的 HKDF salt（保持旧值，老 Cookie 仍有效）
 const LEGACY_HASH_SALT = 'cloudflare-light-blog-auth-v1';   // 旧版哈希用的固定 salt（仅用于兼容校验）
-const PBKDF2_ITERATIONS = 100000;
+// 1 万次：兼顾 Workers 免费层 10ms CPU 限制与安全（上游 v1.3.1 同样为此从 10 万降到 1 万）。
+// 哈希串自带迭代次数（pbkdf2$<iter>$<salt>$<hash>），所以改这个常量**只影响新哈希**，
+// 已存的 10 万次哈希仍按各自记录的次数校验，不需要迁移、也不会失效。
+const PBKDF2_ITERATIONS = 10000;
 const PBKDF2_HASH = 'SHA-256';
 const PBKDF2_PREFIX = 'pbkdf2$';
 
@@ -231,10 +234,14 @@ export async function invalidateAllTokens(env) {
 
 /**
  * 从请求中提取并验证令牌
- * 未配置 ADMIN_PASSWORD 时视为免认证（保持既有行为）
+ * fail-closed：未配置 ADMIN_PASSWORD 时一律拒绝，避免 Secret 缺失 / 迁移遗漏时管理接口被完全敞开。
+ * （旧行为是 return true —— 任何人访问后台都能拿到全部管理权限，属严重 fail-open。）
  */
 export async function authenticateRequest(request, env) {
-  if (!env.ADMIN_PASSWORD) return true;
+  if (!env.ADMIN_PASSWORD) {
+    console.error('[Auth] ADMIN_PASSWORD 未配置，管理接口已 fail-closed');
+    return false;
+  }
 
   const authHeader = request.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) return false;
