@@ -2,7 +2,7 @@
 // 路由 / 全站密码门禁 / SSR 首页与文章页 / 页面缓存 / 浏览计数
 
 import { html, json, escapeHtml, handleOptions } from './lib/utils.js';
-import { initDB, getSettings, getSiteData, listPosts } from './lib/db.js';
+import { initDB, getSettings, getSiteData, listPosts, getRelatedPosts } from './lib/db.js';
 import { verifySiteAuthCookie, verifyPasswordHash, parseCookies } from './lib/auth.js';
 import { getCached, putCached } from './lib/cache.js';
 import { handleAPI } from './api.js';
@@ -227,8 +227,12 @@ async function handlePostPage(request, env, path, ctx) {
     }
   }
 
-  const data = await getSiteData(env, settings);
-  const resp = html(getPostHTML(post, settings, request.url, data));
+  // 侧边栏数据与相关文章并行查询（相关文章只读标题/分类/日期，代价很小）
+  const [data, related] = await Promise.all([
+    getSiteData(env, settings),
+    getRelatedPosts(env, post, 4)
+  ]);
+  const resp = html(getPostHTML(post, settings, request.url, data, related));
   resp.headers.set('Cache-Control', 'no-cache');
 
   // 浏览计数：只在真正返回文章内容时统计，且忽略明显的爬虫

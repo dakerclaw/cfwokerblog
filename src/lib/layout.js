@@ -10,15 +10,21 @@
 import { escapeHtml } from './utils.js';
 import { getThemeStyle } from './themes.js';
 
-/** 字体：只保留实际用到的字重，减少 CSS 体积与字体请求 */
-export const FONT_LINKS = `  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">`;
+/**
+ * 字体：改用**系统字体栈**，不再加载外部 Web 字体。
+ *
+ * 为什么改（2026-10-30）：
+ *   fonts.googleapis.com / fonts.gstatic.com 在国内不稳定，被阻断时会静默回退到 sans-serif，
+ *   多一次跨域往返、首屏还可能出现字体闪烁。系统字体栈零请求、零阻断风险。
+ * 保留这个导出的名字，是为了不动各视图里的 ${FONT_LINKS} 插值位置（现在恒为空串）；
+ * 将来若想恢复 Web 字体，把 <link> 写回这里即可。
+ */
+export const FONT_LINKS = '';
 
 /** 首页与文章页完全一致的样式（单一来源，避免两处复制粘贴后逐渐分叉） */
 export const COMMON_CSS = `
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Nunito, 'Noto Sans SC', sans-serif; background: var(--body-bg, #f8f8f0); color: var(--text-body, #725d42); }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', 'Helvetica Neue', Arial, sans-serif; background: var(--body-bg, #f8f8f0); color: var(--text-body, #725d42); }
     header { background: var(--header-bg, linear-gradient(135deg, #7DC395 0%, #5BAF7A 100%)); color: #fff; padding: 40px 20px; text-align: center; position: relative; overflow: hidden; }
     header::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 40px; background: linear-gradient(transparent, rgba(0,0,0,0.05)); }
     header h1 { font-size: 2.5em; font-weight: 800; margin-bottom: 8px; letter-spacing: 0.02em; text-shadow: 0 2px 4px rgba(0,0,0,0.1); }

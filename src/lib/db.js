@@ -452,6 +452,65 @@ export function postUrl(post) {
 }
 
 /**
+ * 相关文章：优先同标签，不足时用同分类补齐。
+ *
+ * 约定：
+ *  - 只取已发布且**没有密码保护**的文章 —— 把加锁文章放进「相关」，读者点进去又撞密码页，
+ *    体验割裂，也会让「有没有密码」这件事通过相关列表泄露。
+ *  - 结果按 id 去重（同标签与同分类会重叠），最多 limit 篇。
+ *  - 失败只记日志并返回空数组，不能因为「相关文章」把整篇文章页拖成 500。
+ *
+ * 返回字段刻意保持精简（标题 / 分类 / 日期 / 链接），不读正文，避免无谓的 IO。
+ */
+export async function getRelatedPosts(env, post, limit) {
+  if (!post || !post.id) return [];
+  const max = Math.min(6, Math.max(1, parseInt(limit, 10) || 4));
+  const seen = new Set([String(post.id)]);
+  const out = [];
+
+  const baseSql = 'SELECT id, title, category, tags, created_at, published_at FROM posts ' +
+    "WHERE status = 'published' AND id != ? AND (password IS NULL OR password = '') ";
+
+  const collect = (rows) => {
+    (rows || []).forEach(row => {
+      if (out.length >= max) return;
+      const key = String(row.id);
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({
+        id: row.id,
+        title: row.title,
+        category: row.category || '',
+        published_at: row.published_at || row.created_at,
+        url: postUrl(row)
+      });
+    });
+  };
+
+  try {
+    const tags = splitTags(post.tags);
+    if (tags.length) {
+      // tags_index 形如 ',a,b,'，用 instr(..., ',a,') 做精确标签匹配，避免 LIKE 的子串误命中
+      const conds = tags.map(() => 'instr(tags_index, ?) > 0').join(' OR ');
+      const { results } = await env.DB.prepare(
+        baseSql + 'AND (' + conds + ') ORDER BY published_at DESC, id DESC LIMIT ?'
+      ).bind(post.id, ...tags.map(t => ',' + t + ','), max).all();
+      collect(results);
+    }
+    if (out.length < max && post.category) {
+      const { results } = await env.DB.prepare(
+        baseSql + 'AND category = ? ORDER BY published_at DESC, id DESC LIMIT ?'
+      ).bind(post.id, post.category, max).all();
+      collect(results);
+    }
+  } catch (e) {
+    console.error('[DB] 相关文章查询失败:', e.message || 'Error');
+  }
+
+  return out;
+}
+
+/**
  * 分页查询已发布文章
  * @param {object} options { page, limit, category, tag, q, pinnedPostId }
  */

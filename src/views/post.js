@@ -4,6 +4,9 @@
 //  2. 正文与自定义脚本用 jsonScript 序列化，彻底避免 </script> 截断导致的注入。
 //  3. 分享缩略图、结构化数据补全，正文图片排除图标（点击图标不再弹出灯箱）。
 //  4. 代码块 / 中文围栏块的解析逻辑保持原样（这段是针对本站研报内容专门调过的）。
+//  5. 正文 HTML 经 DOMParser 惰性解析后消毒（WordPress 导入等外部内容不再默认可信）。
+//  6. 正文外链自动 target="_blank" rel="noopener noreferrer"。
+//  7. 客户端按正文 h2/h3 生成文章目录；相关文章由服务端渲染。
 
 import { jsonScript, escapeHtml, absoluteUrl } from '../lib/utils.js';
 import {
@@ -43,6 +46,21 @@ const PAGE_CSS = `
     .lightbox-nav:hover { background: rgba(255,255,255,0.3); border-color: rgba(255,255,255,0.5); }
     .lightbox-nav:active { transform: scale(0.9); }
     .lightbox-counter { color: rgba(255,255,255,0.8); font-size: 14px; font-weight: 600; white-space: nowrap; min-width: 50px; text-align: center; }
+    /* 文章目录：客户端按正文 h2/h3 生成，少于 2 个标题时保持隐藏 */
+    .post-toc { display: none; background: var(--card-bg, #f0ece2); border: 1.5px solid var(--card-border, #ddd6c6); border-radius: 14px; padding: 16px 20px; margin: 0 0 22px; }
+    .post-toc-title { font-weight: 800; color: var(--text-primary, #794f27); font-size: 0.95em; margin-bottom: 8px; }
+    .post-toc ol { margin: 0; padding-left: 20px; line-height: 1.9; }
+    .post-toc li { font-size: 0.9em; }
+    .post-toc li.toc-h3 { margin-left: 14px; font-size: 0.86em; }
+    .post-toc a { color: var(--text-body, #725d42); text-decoration: none; }
+    .post-toc a:hover { color: var(--btn-shadow, #11a89b); text-decoration: underline; }
+    /* 相关文章 */
+    .related-posts { margin-top: 28px; padding-top: 18px; border-top: 2px solid var(--card-border, #e8e0cc); }
+    .related-title { font-weight: 800; color: var(--text-primary, #794f27); margin-bottom: 12px; font-size: 1em; }
+    .related-item { display: block; padding: 10px 14px; margin-bottom: 8px; background: var(--body-bg, #f8f8f0); border: 1.5px solid var(--card-border, #e8e0cc); border-radius: 12px; text-decoration: none; transition: all 0.2s; }
+    .related-item:hover { border-color: var(--btn-bg, #19c8b9); transform: translateY(-1px); }
+    .related-item-title { display: block; color: var(--text-body, #725d42); font-weight: 700; font-size: 0.92em; line-height: 1.5; }
+    .related-item-meta { display: block; color: var(--text-secondary, #9f927d); font-size: 0.76em; margin-top: 3px; font-weight: 600; }
     @media (max-width: 768px) {
       .post-article { padding: 20px; border-radius: 16px; }
       .post-article h1 { font-size: 1.3em; }
@@ -88,12 +106,17 @@ const CODE_CSS = `
     summary::-webkit-details-marker { display: none; }
     details > div, details > p { padding: 16px 20px; }`;
 
-export function getPostHTML(post, settings, requestUrl, data) {
+export function getPostHTML(post, settings, requestUrl, data, related) {
   settings = settings || {};
   data = data || {};
+  related = related || [];
   const siteName = settings.site_name || '我的博客';
   const siteAuthor = settings.site_author || siteName;
   const postExcerpt = post.excerpt || '';
+  const fmtDate = (d) => {
+    const dt = new Date(d);
+    return isNaN(dt.getTime()) ? '' : dt.getFullYear() + '年' + (dt.getMonth() + 1) + '月' + dt.getDate() + '日';
+  };
 
   let origin = '';
   if (requestUrl) { try { origin = new URL(requestUrl).origin; } catch (e) { origin = ''; } }
@@ -163,10 +186,20 @@ ${tagCloudBoxHTML(settings, data.tags)}
           <span><img src="/icon/category.png" class="icon-img" alt="" width="18" height="18" style="width:18px;height:18px;vertical-align:middle;margin-right:6px">${escapeHtml(post.category)}</span>
           <span>${(function (d) { return isNaN(d.getTime()) ? '' : d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日'; })(new Date(post.published_at || post.created_at))}</span>
         </div>
+        <nav id="post-toc" class="post-toc" aria-label="文章目录">
+          <div class="post-toc-title">📑 目录</div>
+        </nav>
         <div id="post-content" style="line-height:1.8"></div>
         ${tags.length ? `<div style="margin-top:24px;padding-top:16px;border-top:2px solid var(--card-border, #e8e0cc);display:flex;flex-wrap:wrap;gap:8px">${tags.map(t =>
           `<a href="/?tag=${encodeURIComponent(t)}" style="display:inline-block;padding:5px 14px;background:var(--card-bg, #e6f9f6);color:var(--btn-shadow, #11a89b);font-size:0.85em;font-weight:700;border:1.5px solid var(--btn-bg, #19c8b9);border-radius:50px;text-decoration:none">${escapeHtml(t)}</a>`
         ).join('')}</div>` : ''}
+        ${related.length ? `<div class="related-posts">
+          <div class="related-title">📚 相关文章</div>
+          ${related.map(r => `<a class="related-item" href="${escapeHtml(r.url)}">
+            <span class="related-item-title">${escapeHtml(r.title)}</span>
+            <span class="related-item-meta">${escapeHtml(r.category || '')}${r.category ? ' · ' : ''}${fmtDate(r.published_at)}</span>
+          </a>`).join('')}
+        </div>` : ''}
       </article>
     </div>
   </main>
@@ -335,9 +368,81 @@ ${CLIENT_UTILS}
         html = html.split('%%CB_' + j + '%%').join(preOpen + '<code class="hljs">' + highlighted + '</code></pre>');
       }
 
+      // 第五步：HTML 消毒
+      // Markdown 允许内联 HTML，而正文可能来自「WordPress 导入」等外部来源，不能假设它干净。
+      // 关键：必须用 DOMParser 解析成**惰性文档**（脚本不执行、图片不加载）再清理；
+      // 若先用 document.createElement('div').innerHTML 建临时节点，
+      // <img src=x onerror=...> 会立即加载并触发事件，等于消毒前先中招。
+      // 注意：本段位于模板字符串内，所以这里不使用任何正则字面量（\s、\/ 会被提前转义）。
+      function stripWs(s) {
+        var out = '';
+        for (var i = 0; i < s.length; i++) {
+          var c = s.charCodeAt(i);
+          if (c === 32 || c === 9 || c === 10 || c === 13 || c === 11 || c === 12) continue;
+          out += s.charAt(i);
+        }
+        return out;
+      }
+      function sanitizeHtml(input) {
+        if (typeof DOMParser === 'undefined') return input;
+        var doc = new DOMParser().parseFromString(input, 'text/html');
+        var body = doc.body;
+        // 1) 整块移除危险元素（script 的嵌套后代也一并消失）
+        var BAD = 'script,style,iframe,frame,frameset,object,embed,form,input,button,textarea,select,link,meta,base';
+        var badNodes = body.querySelectorAll(BAD);
+        for (var b = badNodes.length - 1; b >= 0; b--) {
+          if (badNodes[b].parentNode) badNodes[b].parentNode.removeChild(badNodes[b]);
+        }
+        // 2) 逐个属性清理
+        var all = body.querySelectorAll('*');
+        for (var a = 0; a < all.length; a++) {
+          var el = all[a];
+          var attrs = Array.prototype.slice.call(el.attributes);
+          for (var k = 0; k < attrs.length; k++) {
+            var name = attrs[k].name.toLowerCase();
+            var val = attrs[k].value || '';
+            // 任何事件属性：onclick / onerror / onload ...
+            if (name.length > 2 && name.indexOf('on') === 0) {
+              el.removeAttribute(attrs[k].name);
+              continue;
+            }
+            // 内联样式里禁止 expression / javascript: / behavior:
+            if (name === 'style') {
+              var st = stripWs(val).toLowerCase();
+              if (st.indexOf('expression') !== -1 || st.indexOf('javascript:') !== -1 || st.indexOf('behavior:') !== -1) {
+                el.removeAttribute(attrs[k].name);
+              }
+              continue;
+            }
+            // 链接类属性禁止 javascript: / vbscript: / data:text/html
+            if (name === 'href' || name === 'src' || name === 'xlink:href' || name === 'action' || name === 'formaction' || name === 'poster') {
+              var u = stripWs(val).toLowerCase();
+              if (u.indexOf('javascript:') === 0 || u.indexOf('vbscript:') === 0 || u.indexOf('data:text/html') === 0) {
+                el.removeAttribute(attrs[k].name);
+              }
+            }
+          }
+        }
+        return body.innerHTML;
+      }
+      html = sanitizeHtml(html);
+
       // 给所有图片添加懒加载（在插入 DOM 前）
       html = html.split('<img ').join('<img loading="lazy" ');
       document.getElementById('post-content').innerHTML = html;
+
+      // 正文外链统一新窗口打开（站内链接保持当前窗口，避免打断阅读）
+      var contentLinks = document.querySelectorAll('#post-content a[href]');
+      for (var lk = 0; lk < contentLinks.length; lk++) {
+        var linkEl = contentLinks[lk];
+        var href = linkEl.getAttribute('href') || '';
+        var hrefLow = href.toLowerCase();
+        var isAbsolute = hrefLow.indexOf('http://') === 0 || hrefLow.indexOf('https://') === 0;
+        if (isAbsolute && linkEl.hostname !== window.location.hostname) {
+          linkEl.target = '_blank';
+          linkEl.rel = 'noopener noreferrer';
+        }
+      }
 
       // 为代码块添加复制按钮
       var pres = document.querySelectorAll('pre');
@@ -369,6 +474,48 @@ ${CLIENT_UTILS}
         tbl.parentNode.insertBefore(wrap, tbl);
         wrap.appendChild(tbl);
       });
+
+      // 文章目录：从正文 h2/h3 生成（少于 2 个标题就不显示，避免短文章顶部多一个空盒子）。
+      // 事件用委托绑在 nav 上，避免给每个链接各建一个闭包。
+      (function buildTOC() {
+        var nav = document.getElementById('post-toc');
+        var content = document.getElementById('post-content');
+        if (!nav || !content) return;
+        var headings = Array.prototype.slice.call(content.querySelectorAll('h2, h3'));
+        if (headings.length < 2) return;
+        var used = {};
+        var list = document.createElement('ol');
+        for (var i = 0; i < headings.length; i++) {
+          var h = headings[i];
+          var text = (h.textContent || '').trim();
+          if (!text) continue;
+          var id = 'sec-' + (i + 1);
+          if (used[id]) id = id + '-' + i;
+          used[id] = true;
+          h.id = id;
+          var li = document.createElement('li');
+          li.className = h.tagName === 'H3' ? 'toc-h3' : 'toc-h2';
+          var a = document.createElement('a');
+          a.href = '#' + id;
+          a.textContent = text;
+          li.appendChild(a);
+          list.appendChild(li);
+        }
+        if (!list.children.length) return;
+        nav.appendChild(list);
+        nav.style.display = 'block';
+        nav.addEventListener('click', function(ev) {
+          var t = ev.target;
+          while (t && t !== nav && t.tagName !== 'A') t = t.parentNode;
+          if (!t || t === nav) return;
+          var targetId = (t.getAttribute('href') || '').substring(1);
+          var target = document.getElementById(targetId);
+          if (!target) return;
+          ev.preventDefault();
+          window.scrollTo({ top: target.getBoundingClientRect().top + window.pageYOffset - 16, behavior: 'smooth' });
+          if (window.history && history.replaceState) history.replaceState(null, '', '#' + targetId);
+        });
+      })();
 
       window.initLightbox();
     });
